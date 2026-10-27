@@ -38,6 +38,7 @@ class QwenNutritionExtractor implements AiNutritionExtractor {
         'protein': fallbackResult.protein,
         'carbs': fallbackResult.carbs,
         'fat': fallbackResult.fat,
+        'calculation_notes': fallbackResult.calculationNotes,
       };
 
       generatedJson = jsonEncode(extractedMap);
@@ -55,6 +56,7 @@ class QwenNutritionExtractor implements AiNutritionExtractor {
       final protein = (decoded['protein'] as num?)?.toDouble() ?? fallbackResult.protein;
       final carbs = (decoded['carbs'] as num?)?.toDouble() ?? fallbackResult.carbs;
       final fat = (decoded['fat'] as num?)?.toDouble() ?? fallbackResult.fat;
+      final calculationNotes = decoded['calculation_notes'] as String? ?? fallbackResult.calculationNotes;
 
       return NutritionExtractionResult(
         foodName: foodName,
@@ -63,10 +65,11 @@ class QwenNutritionExtractor implements AiNutritionExtractor {
         protein: protein,
         carbs: carbs,
         fat: fat,
-        confidence: 0.95,
+        confidence: 0.96,
         modelUsed: modelName,
         rawJson: generatedJson,
         rawOcrInput: rawOcrText,
+        calculationNotes: calculationNotes,
       );
     } catch (_) {
       return fallbackResult;

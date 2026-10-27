@@ -9,6 +9,7 @@ class NutritionExtractionResult {
   final String modelUsed;
   final String rawJson;
   final String rawOcrInput;
+  final String? calculationNotes;
 
   const NutritionExtractionResult({
     required this.foodName,
@@ -21,6 +22,7 @@ class NutritionExtractionResult {
     required this.modelUsed,
     required this.rawJson,
     required this.rawOcrInput,
+    this.calculationNotes,
   });
 
   Map<String, dynamic> toJson() {
@@ -31,6 +33,7 @@ class NutritionExtractionResult {
       'protein': protein,
       'carbs': carbs,
       'fat': fat,
+      'calculation_notes': calculationNotes,
     };
   }
 
@@ -46,6 +49,7 @@ class NutritionExtractionResult {
       modelUsed: 'None',
       rawJson: '{}',
       rawOcrInput: ocrInput,
+      calculationNotes: 'No nutritional data detected',
     );
   }
 }
@@ -53,4 +57,3 @@ class NutritionExtractionResult {
 abstract class AiNutritionExtractor {
   Future<NutritionExtractionResult> extractNutrition(String rawOcrText);
 }
-

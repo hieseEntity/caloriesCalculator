@@ -4,8 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/ai_nutrition/nutrition_extractor.dart';
 import '../../features/ai_nutrition/qwen_llm_service.dart';
+import '../../features/ocr/google_mlkit_ocr_engine.dart';
 import '../../features/ocr/ocr_service.dart';
-import '../../features/ocr/pp_ocr_mobile_engine.dart';
 import '../../features/tracker/tracker_controller.dart';
 import '../widgets/confirmation_dialog.dart';
 
@@ -25,7 +25,7 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final ImagePicker _picker = ImagePicker();
-  final OcrEngine _ocrEngine = PpOcrMobileEngine();
+  final OcrEngine _ocrEngine = GoogleMlKitOcrEngine();
   final AiNutritionExtractor _aiExtractor = QwenNutritionExtractor();
 
   bool _isProcessing = false;
@@ -59,26 +59,26 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() {
       _selectedImagePath = path;
       _isProcessing = true;
-      _currentStep = 'Phase 2: Running PP-OCRv4 Mobile...';
+      _currentStep = 'Phase 2: Extracting text via Google ML Kit...';
       _ocrResult = null;
       _extractionResult = null;
     });
 
-    // 1. Phase 2: Run PP-OCRv4
+    // 1. Phase 2: Run Google ML Kit Text Recognition
     final ocr = await _ocrEngine.processImage(path);
 
     setState(() {
       _ocrResult = ocr;
-      _currentStep = 'Phase 3: Parsing via Qwen2.5-0.5B INT4...';
+      _currentStep = 'Phase 3: Calculating Total Nutrients via Qwen2.5-0.5B...';
     });
 
-    // 2. Phase 3: Run Qwen2.5-0.5B Extractor
+    // 2. Phase 3: Run Qwen2.5-0.5B Extractor & Calculation Engine
     final extraction = await _aiExtractor.extractNutrition(ocr.rawText);
 
     setState(() {
       _extractionResult = extraction;
       _isProcessing = false;
-      _currentStep = 'Extraction Complete!';
+      _currentStep = 'Calculation Complete!';
     });
 
     // 3. Phase 4: Show User Confirmation Prompt
@@ -144,7 +144,7 @@ class _ScanScreenState extends State<ScanScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                         ),
                         Text(
-                          'PP-OCRv4 Mobile (<300ms) ➔ Qwen2.5-0.5B INT4',
+                          'Google ML Kit OCR ➔ Qwen2.5-0.5B Nutrient Calculator',
                           style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6)),
                         ),
                       ],
@@ -234,18 +234,18 @@ class _ScanScreenState extends State<ScanScreen> {
               runSpacing: 8,
               children: [
                 ActionChip(
+                  avatar: const Icon(Icons.calculate, size: 16, color: AppTheme.caloriesColor),
+                  label: const Text('Combo Meal (Multi-Item Sum)'),
+                  onPressed: _isProcessing ? null : () => _runPresetDemo('lunch_combo'),
+                ),
+                ActionChip(
                   avatar: const Icon(Icons.fitness_center, size: 16, color: AppTheme.proteinColor),
                   label: const Text('Protein Crunch Bar'),
                   onPressed: _isProcessing ? null : () => _runPresetDemo('protein_bar'),
                 ),
                 ActionChip(
-                  avatar: const Icon(Icons.eco, size: 16, color: AppTheme.primary),
-                  label: const Text('Chicken Salad Bowl'),
-                  onPressed: _isProcessing ? null : () => _runPresetDemo('chicken_salad'),
-                ),
-                ActionChip(
                   avatar: const Icon(Icons.breakfast_dining, size: 16, color: AppTheme.fatColor),
-                  label: const Text('Oatmeal Snack Pack'),
+                  label: const Text('Oatmeal Energy Pack'),
                   onPressed: _isProcessing ? null : () => _runPresetDemo('oatmeal_snack'),
                 ),
               ],
@@ -290,11 +290,19 @@ class _ScanScreenState extends State<ScanScreen> {
                     _TelemetryRow(label: 'OCR Engine', value: _ocrResult!.engine),
                     _TelemetryRow(label: 'AI Extractor', value: _extractionResult!.modelUsed),
                     _TelemetryRow(label: 'Confidence', value: '${(_extractionResult!.confidence * 100).toInt()}%'),
-                    _TelemetryRow(label: 'Extracted Calories', value: '${_extractionResult!.calories} kcal'),
+                    _TelemetryRow(label: 'Calculated Calories', value: '${_extractionResult!.calories} kcal'),
                     _TelemetryRow(
-                      label: 'Extracted Macros',
+                      label: 'Calculated Macros',
                       value: 'P: ${_extractionResult!.protein.toInt()}g | C: ${_extractionResult!.carbs.toInt()}g | F: ${_extractionResult!.fat.toInt()}g',
                     ),
+                    if (_extractionResult!.calculationNotes != null &&
+                        _extractionResult!.calculationNotes!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      _TelemetryRow(
+                        label: 'Calculation',
+                        value: _extractionResult!.calculationNotes!,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -336,7 +344,16 @@ class _TelemetryRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6))),
-          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
         ],
       ),
     );

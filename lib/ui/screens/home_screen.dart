@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'PP-OCRv4 + Qwen2.5-0.5B on-device AI',
+                                    'Google ML Kit + Qwen2.5-0.5B on-device AI',
                                     style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6)),
                                   ),
                                 ],

@@ -124,3 +124,4 @@ This document outlines the chronological steps taken from the initial blank Flut
   * Compiles Google Play App Bundle (`app-release.aab`).
   * Uploads build artifacts for direct download from the GitHub Actions tab.
   * Automatically creates GitHub Releases with attached APK files whenever version tags (`v*`) are pushed.
+

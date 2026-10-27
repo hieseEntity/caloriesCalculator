@@ -18,21 +18,22 @@ A lightweight, privacy-first, on-device mobile application for tracking daily ca
 ---
 
 ### Phase 2: Image Text Recognition (OCR)
-* **Model:** `PP-OCRv4 Mobile` (PaddleOCR Mobile Edition)
-* **Deployment:** On-Device (Android NPU/CPU or iOS Metal via ONNX Runtime / TFLite)
+* **Model:** `Google ML Kit Text Recognition` (On-Device native via Google Play Services / Vision API) & `PP-OCRv4 Mobile`
+* **Deployment:** On-Device (Android NPU/CPU or iOS Metal)
 * **Input:** Image from Camera capture or File Gallery pick
 * **Output:** Raw string / Bounding box text blocks
-* **Resource Profile:** ~10-15 MB memory footprint, execution latency $< 300\text{ ms}$.
+* **Resource Profile:** High accuracy, zero cloud calls, execution latency $< 200\text{ ms}$.
 
 ---
 
-### Phase 3: Calorie & Macro Extraction
+### Phase 3: Calorie & Macro Extraction and Total Nutrient Calculation
 * **Model:** `Qwen2.5-0.5B-Instruct` (Quantized to `INT4`)
 * **Deployment:** On-Device via `llama.cpp` / `MLC-LLM` / `ONNX`
-* **Function:** Parses raw OCR text output and extracts structured nutritional values.
+* **Function:** Ingests raw OCR text, detects single or multi-item meals, sums cumulative calories and macronutrients, and performs Atwater formula $(4P + 4C + 9F)$ cross-checks.
 * **Prompt Strategy:**
   * Input: Raw text from OCR
-  * Constraint: JSON-only output format `{ "calories": number, "protein": number, "carbs": number, "fat": number }`
+  * Instructions: Detect items, calculate total sum of calories, protein, carbs, and fat across all detected servings/portions.
+  * Constraint: JSON-only output format `{ "food_name": string, "serving_size": string, "calories": number, "protein": number, "carbs": number, "fat": number, "calculation_notes": string }`
 * **Resource Profile:** ~350 MB RAM consumption, low CPU/GPU overhead.
 
 ---
