@@ -3,6 +3,7 @@ name: Build Android APK & App Bundle
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -11,6 +12,8 @@ jobs:
   build:
     name: Build Android Release Artifacts
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -54,4 +57,13 @@ jobs:
         with:
           name: calories-calculator-release-aab
           path: build/app/outputs/bundle/release/app-release.aab
+
+      - name: Create GitHub Release with APK (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          generate_release_notes: true
 
