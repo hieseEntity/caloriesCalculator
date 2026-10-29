@@ -208,3 +208,18 @@ This document outlines the chronological steps taken from the initial blank Flut
 * Added a compact extracted macro summary inside `ConfirmationDialog`.
 * Clean static analysis and all unit/widget tests passing.
 
+---
+
+## Step 18: Total Product Calorie Focus & Interactive Net Weight/Volume Recalculation
+* **Calorie-Centric Optimization:** Removed other macronutrient displays (protein, carbs, fat) across the scanning and confirmation UI to focus purely on total calories.
+* **Qwen System Prompt & Grammar Update:** Updated LLM system prompt in `PromptTemplates` to calculate the TOTAL calories of the entire product (package, bottle, or container) using base calories and total product net weight/volume/servings.
+* **Total Net Weight/Volume Detection:** Enhanced `RegexNutritionParser` to recognize packaging metadata (Net Wt, Khối lượng tịnh, Thể tích thực, Dung tích, Servings per container) and automatically calculate whole-product calories.
+* **Missing Quantity Notification & Real-Time Input:**
+  * When total package weight/volume is detected: displays a confirmed badge with calculated whole-package calories.
+  * When total quantity is missing from the image: displays an amber notification asking the user to enter the total volume/weight.
+  * Added an interactive input field with unit selector (`g`, `ml`, `khẩu phần`, `lon`, `gói`, `hộp`) in `ExtractedNutritionTable` that dynamically recalculates total product calories in real time as the user types.
+* **Confirmation Dialog Update:** Streamlined `ConfirmationDialog` to focus on food name, total calories, and total volume/weight.
+* Validated with unit tests in `test/ai_nutrition_extractor_test.dart` and `test/test_image_ocr_test.dart`.
+* `flutter analyze` ➔ 0 errors, 0 warnings.
+* Full test suite ➔ 100% pass rate.
+
