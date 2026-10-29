@@ -191,3 +191,20 @@ This document outlines the chronological steps taken from the initial blank Flut
 * `flutter analyze` ➔ 0 errors, 0 warnings.
 * Full test suite ➔ 100% pass rate.
 
+---
+
+## Step 17: Extracted Nutrition Facts Table UI
+* Created dedicated table widget [`lib/ui/widgets/extracted_nutrition_table.dart`](file:///home/hiese/Projects/Flutter/calories_calculator/lib/ui/widgets/extracted_nutrition_table.dart):
+  * **Food Title & Portion Header:** Displays food item name, serving size, and an eye-catching calorie box (`xxx KCAL / CALO`).
+  * **Structured Nutrition Table:** Displays a 4-column data grid:
+    1. Thành phần (Nutrient: Protein, Carbs, Fat)
+    2. Khối lượng (Grams: `X.X g`)
+    3. Năng lượng tương ứng (`X kcal` based on 4/4/9 Atwater factors)
+    4. Tỷ lệ Macro (`X%`)
+  * **Calculation Notes Alert:** Card showing formula breakdowns (e.g. Atwater cross-checks or multi-item summations).
+  * **Expandable Raw OCR Text:** Allows users to view and compare the original OCR text detected from the packaging.
+  * **Direct Action Buttons:** Quick "Lưu vào nhật ký" and "Chỉnh sửa" controls.
+* Integrated the table directly into `ScanScreen` below presets upon scanning.
+* Added a compact extracted macro summary inside `ConfirmationDialog`.
+* Clean static analysis and all unit/widget tests passing.
+
