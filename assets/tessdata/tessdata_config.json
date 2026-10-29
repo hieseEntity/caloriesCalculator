@@ -1,0 +1,119 @@
+{
+  "_comment": "Cấu hình Tesseract OCR cho ứng dụng Calories Calculator",
+  "_description": "File này được đọc bởi TesseractOcrEngine khi khởi động để biết ngôn ngữ, đường dẫn, và tham số nhận diện.",
+
+  "version": "1.0.0",
+  "engine": "tesseract",
+  "engine_version": "5.x",
+
+  "languages": {
+    "primary": "vie",
+    "secondary": "eng",
+    "combined": "vie+eng",
+    "_note": "Kết hợp vie+eng để nhận diện cả nhãn thực phẩm tiếng Việt và tiếng Anh trong cùng một lần scan"
+  },
+
+  "traineddata_files": [
+    {
+      "lang": "vie",
+      "filename": "vie.traineddata",
+      "asset_path": "assets/tessdata/vie.traineddata",
+      "size_mb": 20,
+      "description": "Tiếng Việt — nhận diện chữ Latin có dấu (à, á, â, ã, ä, å...)",
+      "download_url": "https://github.com/tesseract-ocr/tessdata/raw/main/vie.traineddata",
+      "required": true
+    },
+    {
+      "lang": "eng",
+      "filename": "eng.traineddata",
+      "asset_path": "assets/tessdata/eng.traineddata",
+      "size_mb": 12,
+      "description": "Tiếng Anh — nhận diện nhãn dinh dưỡng, Nutrition Facts, Serving Size...",
+      "download_url": "https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata",
+      "required": true
+    }
+  ],
+
+  "runtime": {
+    "copy_to_documents": true,
+    "_copy_note": "Vì Tesseract C++ không đọc được file từ Flutter asset bundle, TesseractOcrEngine sẽ copy traineddata ra getApplicationDocumentsDirectory()/tessdata/ lần đầu chạy",
+    "destination_subdir": "tessdata",
+    "cache_strategy": "skip_if_exists",
+    "_cache_note": "Nếu file đã tồn tại trong thư mục documents thì bỏ qua bước copy (tránh copy lại mỗi lần mở app)"
+  },
+
+  "ocr_params": {
+    "psm": 3,
+    "_psm_note": "Page Segmentation Mode 3 = Fully automatic page segmentation, no OSD. Phù hợp cho ảnh nhãn thực phẩm, bảng Nutrition Facts",
+    "oem": 3,
+    "_oem_note": "OCR Engine Mode 3 = Default, based on what is available (LSTM preferred). Dùng LSTM neural network nếu có",
+    "preserve_interword_spaces": 1,
+    "_preserve_note": "Giữ khoảng cách giữa các từ — quan trọng để parse đúng 'Protein 20g', 'Calories 250 kcal'",
+    "dpi": 300,
+    "_dpi_note": "DPI mặc định khi ảnh không có metadata resolution. 300 DPI phù hợp cho ảnh chụp nhãn"
+  },
+
+  "preprocessing": {
+    "enabled": false,
+    "_note": "Bật nếu muốn tiền xử lý ảnh trước khi đưa vào Tesseract (resize, grayscale, threshold). Hiện tại dùng ảnh gốc từ camera.",
+    "resize_width": 1200,
+    "grayscale": true,
+    "binarize_threshold": 128
+  },
+
+  "target_content": {
+    "description": "Loại nội dung mà OCR engine được tối ưu để nhận diện",
+    "types": [
+      "Nutrition Facts / Bảng thông tin dinh dưỡng (FDA/EU format)",
+      "Vietnamese food packaging labels / Nhãn thực phẩm tiếng Việt",
+      "Restaurant menus / Thực đơn nhà hàng",
+      "Grocery receipts / Hóa đơn siêu thị",
+      "Handwritten food diary / Nhật ký ăn uống viết tay (hỗ trợ một phần)"
+    ],
+    "expected_keywords": [
+      "Calories", "Protein", "Carbohydrate", "Fat", "Fiber", "Sugar", "Sodium",
+      "kcal", "kJ", "gram", "mg", "serving", "portion",
+      "Năng lượng", "Chất đạm", "Chất béo", "Tinh bột", "Đường", "Muối"
+    ]
+  },
+
+  "platform": {
+    "android": {
+      "enabled": false,
+      "note": "Trên Android dùng Google ML Kit thay Tesseract — nhanh hơn và không cần file traineddata riêng"
+    },
+    "linux": {
+      "enabled": true,
+      "note": "Tesseract OCR là engine chính trên Linux desktop"
+    },
+    "ios": {
+      "enabled": false,
+      "note": "Trên iOS dùng Google ML Kit"
+    },
+    "macos": {
+      "enabled": false,
+      "note": "Trên macOS dùng Google ML Kit"
+    }
+  },
+
+  "fallback": {
+    "on_empty_result": "return_empty_ocr_result",
+    "on_missing_traineddata": "log_warning_and_skip_language",
+    "on_exception": "return_empty_ocr_result_with_error_log",
+    "_note": "Nếu Tesseract lỗi, TesseractOcrEngine sẽ trả về OcrResult rỗng thay vì crash app"
+  },
+
+  "post_processing": {
+    "trim_whitespace": true,
+    "split_by_newline": true,
+    "_note": "Kết quả OCR được trim và tách dòng để tạo OcrTextBlock[], tương thích với pipeline của Google ML Kit"
+  },
+
+  "pipeline_integration": {
+    "output_goes_to": "QwenNutritionExtractor.extractNutrition(rawText)",
+    "then": "PromptTemplates.buildQwenChatMlPrompt(rawText)",
+    "then_llm": "Qwen2.5-0.5B-Instruct (on-device) → JSON output",
+    "final_output": "NutritionExtractionResult { calories, protein, carbs, fat, calculationNotes }",
+    "_note": "rawText từ Tesseract được truyền trực tiếp vào LLM pipeline — không cần xử lý trung gian"
+  }
+}

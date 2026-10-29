@@ -68,8 +68,14 @@ flutter:
 
   # Khai báo thư mục assets chứa model AI và tessdata cho Tesseract OCR
   assets:
+    # Thư mục model Qwen2.5-0.5B (GGUF file phải tải về riêng)
     - assets/models/
+    # Thư mục Tesseract traineddata + config
     - assets/tessdata/
+    # Khai báo explicit để rootBundle.loadString() tìm thấy file
+    - assets/tessdata/tessdata_config.json
+    - assets/tessdata/vie.traineddata
+    - assets/tessdata/eng.traineddata
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
