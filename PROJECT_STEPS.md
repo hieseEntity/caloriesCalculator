@@ -125,3 +125,64 @@ This document outlines the chronological steps taken from the initial blank Flut
   * Uploads build artifacts for direct download from the GitHub Actions tab.
   * Automatically creates GitHub Releases with attached APK files whenever version tags (`v*`) are pushed.
 
+---
+
+## Step 13: OCR Engine Migration to Google ML Kit + LLM Pipeline Connection
+* Replaced PP-OCRv4 engine with **Google ML Kit Text Recognition** (`google_mlkit_text_recognition ^0.17.1`).
+* Verified that OCR raw text is correctly passed into the LLM pipeline:
+  * `ScanScreen._processImage()` → `ocrEngine.processImage(path)` → `ocr.rawText`
+  * `ocr.rawText` → `QwenNutritionExtractor.extractNutrition(rawOcrText)`
+  * Inside extractor: `PromptTemplates.buildQwenChatMlPrompt(rawOcrText)` builds the full ChatML system prompt
+  * System prompt explicitly instructs LLM to **sum all items** and apply **Atwater formula** (4/4/9 kcal/g)
+* Results displayed in `ConfirmationDialog` with `calculationNotes` explaining how totals were derived.
+
+---
+
+## Step 14: Platform-Aware OCR + Tesseract for Linux + Asset Placeholders
+
+### OCR Platform Dispatch (OcrEngineFactory)
+* Created `lib/features/ocr/ocr_engine_factory.dart` — Strategy pattern factory:
+  * **Android** → `GoogleMlKitOcrEngine` (on-device, no file needed)
+  * **Linux** → `TesseractOcrEngine` (requires `vie.traineddata` + `eng.traineddata`)
+  * **iOS/macOS/Web** → `GoogleMlKitOcrEngine` (fallback)
+* Updated `ScanScreen` to use `OcrEngineFactory.create()` instead of hardcoded ML Kit engine.
+* `ScanScreen` UI dynamically displays the active engine name via `OcrEngineFactory.platformEngineName`.
+
+### Tesseract OCR Engine for Linux
+* Created `lib/features/ocr/tesseract_ocr_engine.dart`:
+  * On first run: copies `assets/tessdata/vie.traineddata` and `eng.traineddata` from Flutter assets bundle to app documents directory (Tesseract C++ requires disk-accessible files).
+  * Lazy initialization — copy only happens once per app installation.
+  * Calls `FlutterTesseractOcr.extractText()` with `vie+eng` combined language recognition.
+  * Returns standard `OcrResult` compatible with the rest of the pipeline.
+* Added `flutter_tesseract_ocr: ^0.4.11` and `path_provider: ^2.1.5` to `pubspec.yaml`.
+
+### Asset Directory Structure
+* Created `assets/models/` — for Qwen2.5-0.5B GGUF model file (must download separately):
+  * `assets/models/MODELS_REQUIRED.md` — download instructions + Hugging Face link
+* Created `assets/tessdata/` — for Tesseract language data (must download separately):
+  * `assets/tessdata/TESSDATA_REQUIRED.md` — download instructions
+  * `assets/tessdata/vie.traineddata.placeholder` — placeholder (replace with real ~20MB file)
+  * `assets/tessdata/eng.traineddata.placeholder` — placeholder (replace with real ~12MB file)
+* Declared both directories in `pubspec.yaml` under `flutter: assets:`.
+
+### Vietnamese + English Code Comments
+* Added full bilingual (Tiếng Việt + English) function-level comments to all rebuilt files:
+  * `ocr_service.dart` — interface definitions, data models
+  * `google_mlkit_ocr_engine.dart` — ML Kit pipeline, mock data for desktop testing
+  * `tesseract_ocr_engine.dart` — initialization, copy logic, Tesseract call
+  * `ocr_engine_factory.dart` — platform dispatch table, usage example
+  * `qwen_llm_service.dart` — LLM pipeline steps, TODO for real fllama integration
+  * `prompt_templates.dart` — system prompt design, ChatML format explanation
+
+### LLM Integration Status
+* OCR text **is** connected to LLM: `ocr.rawText → buildQwenChatMlPrompt() → QwenNutritionExtractor`
+* Current status: `QwenNutritionExtractor` uses `RegexNutritionParser` as computation engine (real GGUF model not yet loaded)
+* **To wire real Qwen model**: download GGUF file → add `fllama` package → replace stub in `qwen_llm_service.dart` (marked with `TODO` comment)
+
+---
+
+## Step 15: Final Verification
+* `flutter analyze` → **No issues found**
+* `flutter test` → **11/11 tests passed**
+* Committed to `main` branch (commit `a8b7273`)
+
