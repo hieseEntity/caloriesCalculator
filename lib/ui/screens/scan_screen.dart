@@ -40,7 +40,6 @@ class _ScanScreenState extends State<ScanScreen> {
 
   bool _isProcessing = false;
   String _currentStep = '';
-  OcrResult? _ocrResult;
   NutritionExtractionResult? _extractionResult;
   String? _selectedImagePath;
 
@@ -69,18 +68,15 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() {
       _selectedImagePath = path;
       _isProcessing = true;
-      // Hiển thị tên engine đang dùng theo nền tảng (Android: ML Kit, Linux: Tesseract)
-      _currentStep = 'Phase 2: Extracting text via ${OcrEngineFactory.platformEngineName}...';
-      _ocrResult = null;
+      _currentStep = 'Đang nhận diện chữ qua ${OcrEngineFactory.platformEngineName}...';
       _extractionResult = null;
     });
 
-    // 1. Phase 2: Run Google ML Kit Text Recognition
+    // 1. Phase 2: Run OCR
     final ocr = await _ocrEngine.processImage(path);
 
     setState(() {
-      _ocrResult = ocr;
-      _currentStep = 'Phase 3: Calculating Total Nutrients via Qwen2.5-0.5B...';
+      _currentStep = 'AI đang tính toán tổng lượng Calo...';
     });
 
     // 2. Phase 3: Run Qwen2.5-0.5B Extractor & Calculation Engine
@@ -89,29 +85,8 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() {
       _extractionResult = extraction;
       _isProcessing = false;
-      _currentStep = 'Calculation Complete!';
+      _currentStep = 'Tính toán hoàn tất!';
     });
-
-    // 3. Phase 4: Show User Confirmation Prompt
-    if (!mounted) return;
-    final entry = await ConfirmationDialog.show(
-      context,
-      extractionResult: extraction,
-      dateString: widget.trackerController.currentDate,
-      imagePath: path,
-    );
-
-    if (entry != null && mounted) {
-      await widget.trackerController.addFoodEntry(entry, widget.targetCalories);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added "${entry.name}" (${entry.calories} kcal) to today\'s log!'),
-          backgroundColor: AppTheme.primary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
   }
 
   Future<void> _saveEntry(FoodEntry entry) async {
@@ -310,49 +285,6 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
               const SizedBox(height: 16),
             ],
-
-            // Pipeline Telemetry Card if results present
-            if (_ocrResult != null && _extractionResult != null) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.speed_rounded, color: AppTheme.caloriesColor, size: 18),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Chi tiết Pipeline & Độ trễ (Telemetry)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${_ocrResult!.latencyMs} ms',
-                            style: const TextStyle(fontSize: 11, color: AppTheme.primary, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(color: Colors.white12, height: 18),
-                    _TelemetryRow(label: 'OCR Engine', value: _ocrResult!.engine),
-                    _TelemetryRow(label: 'AI Extractor', value: _extractionResult!.modelUsed),
-                    _TelemetryRow(label: 'Confidence', value: '${(_extractionResult!.confidence * 100).toInt()}%'),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -369,36 +301,6 @@ class _ScanScreenState extends State<ScanScreen> {
           Text(
             'Capture food label or select test preset',
             style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TelemetryRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _TelemetryRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6))),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-              textAlign: TextAlign.end,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
           ),
         ],
       ),

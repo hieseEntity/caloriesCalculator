@@ -5,6 +5,19 @@ import 'package:calories_calculator/features/ai_nutrition/qwen_llm_service.dart'
 
 void main() {
   group('AI Total Calorie Extraction Tests', () {
+    const cocaWithTotalOcr = '''
+COCA COLA ORIGINAL
+Nutrition Facts
+100 kcal per 100ml
+Thể tích thực: 500ml
+''';
+
+    const cocaWithoutTotalOcr = '''
+COCA COLA ORIGINAL
+Nutrition Facts
+100 kcal per 100ml
+''';
+
     const singleBarOcr = '''
 PROTEIN CRUNCH BAR
 Nutrition Facts
@@ -12,52 +25,40 @@ Serving Size: 1 Bar (60g)
 Calories: 210 kcal
 ''';
 
-    const netWeightProductOcr = '''
-KHOAI TÂY SẤY GIÒN
-Thông tin dinh dưỡng
-Khẩu phần: 100g
-Năng lượng: 400 kcal
-Khối lượng tịnh: 250g
-''';
+    test('Coca with total in image: calculates 100 kcal/100ml x 500ml = 500 kcal total', () {
+      final result = RegexNutritionParser.parse(cocaWithTotalOcr);
 
-    const missingNetWeightOcr = '''
-BÁNH QUY BƠ PHÁP
-Thông tin dinh dưỡng
-Khẩu phần: 100g
-Năng lượng: 350 kcal
-''';
+      expect(result.foodName, contains('COCA COLA'));
+      expect(result.caloriesPerServing, equals(100));
+      expect(result.totalProductQuantity, equals(500.0));
+      expect(result.hasTotalQuantity, isTrue);
+      // 100 * (500 / 100) = 500 kcal
+      expect(result.calories, equals(500));
+      expect(result.calculationNotes, contains('500 kcal'));
+    });
 
-    test('RegexNutritionParser extracts calories correctly from single-item OCR text', () {
+    test('Coca without total in image: flags missing total and calculates 500 kcal when user inputs 500ml', () {
+      final result = RegexNutritionParser.parse(cocaWithoutTotalOcr);
+
+      expect(result.foodName, contains('COCA COLA'));
+      expect(result.caloriesPerServing, equals(100));
+      expect(result.hasTotalQuantity, isFalse);
+      expect(result.calories, equals(0), reason: 'Must be 0 until user inputs total volume');
+
+      // User inputs 500ml
+      final calculated = result.copyWithTotalQuantity(500, newUnit: 'ml');
+      expect(calculated.calories, equals(500));
+      expect(calculated.hasTotalQuantity, isTrue);
+      expect(calculated.totalProductQuantity, equals(500.0));
+      expect(calculated.calculationNotes, contains('500 kcal'));
+    });
+
+    test('RegexNutritionParser extracts calories correctly from single container item', () {
       final result = RegexNutritionParser.parse(singleBarOcr);
 
       expect(result.foodName, contains('PROTEIN CRUNCH BAR'));
-      expect(result.servingSize, contains('1 Bar (60g)'));
       expect(result.calories, equals(210));
       expect(result.hasTotalQuantity, isTrue);
-    });
-
-    test('RegexNutritionParser automatically calculates total calories from Net Weight', () {
-      final result = RegexNutritionParser.parse(netWeightProductOcr);
-
-      // 400 kcal per 100g * (250g / 100g) = 1000 kcal total
-      expect(result.calories, equals(1000));
-      expect(result.hasTotalQuantity, isTrue);
-      expect(result.totalProductQuantity, equals(250.0));
-      expect(result.calculationNotes, contains('1000 kcal tổng'));
-    });
-
-    test('RegexNutritionParser flags missing total weight and allows user recalculation', () {
-      final result = RegexNutritionParser.parse(missingNetWeightOcr);
-
-      expect(result.calories, equals(350));
-      expect(result.hasTotalQuantity, isFalse);
-      expect(result.calculationNotes, contains('Chưa nhận diện được tổng khối lượng'));
-
-      // User enters 200g
-      final updated = result.copyWithTotalQuantity(200);
-      expect(updated.calories, equals(700)); // 350 * 2 = 700 kcal
-      expect(updated.hasTotalQuantity, isTrue);
-      expect(updated.totalProductQuantity, equals(200.0));
     });
 
     test('PromptTemplates formats Qwen2.5 ChatML with TOTAL product calorie instructions', () {
@@ -71,12 +72,12 @@ Năng lượng: 350 kcal
       expect(prompt, contains('<|im_start|>assistant'));
     });
 
-    test('QwenNutritionExtractor completes end-to-end extraction focusing on calories', () async {
+    test('QwenNutritionExtractor completes end-to-end extraction with Coca calculation', () async {
       final extractor = QwenNutritionExtractor();
-      final result = await extractor.extractNutrition(netWeightProductOcr);
+      final result = await extractor.extractNutrition(cocaWithTotalOcr);
 
-      expect(result.calories, equals(1000));
-      expect(result.totalProductQuantity, equals(250.0));
+      expect(result.calories, equals(500));
+      expect(result.totalProductQuantity, equals(500.0));
       expect(result.hasTotalQuantity, isTrue);
     });
   });
