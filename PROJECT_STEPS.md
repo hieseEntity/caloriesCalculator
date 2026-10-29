@@ -193,6 +193,17 @@ This document outlines the chronological steps taken from the initial blank Flut
 
 ---
 
+## Step 19: Pure Total Calories Output Flow (Auto-Detect vs User Prompt)
+* **Streamlined Output Interface:** Refined the extraction output so it **exclusively displays the total calories the user will get**.
+* **Two-Branch Decision Flow:**
+  1. **Total detected in image:** Model automatically calculates whole-product calories (e.g. 100 kcal / 100ml on a 500ml Coca = $100 \times 5 = 500\text{ kcal}$) and prints solely **500 kcal** with a one-click "Lưu vào nhật ký" button.
+  2. **Total NOT detected in image:** Model detects base calories, displays a clear notification stating the whole product volume is missing, and prompts the user with an input field to enter it. Recalculates total calories in real-time as the user inputs the quantity.
+* **Eliminated Bottom Sheet Interruption:** User sees the clean calculation card directly on the scan screen without modal disruption.
+* **Unit Tests Added:** Added dedicated unit tests for the Coca-Cola 100 kcal/100ml × 500ml flow (both auto-detected and user-prompted).
+* Static analysis: 0 issues; all 12 test suites passing.
+
+---
+
 ## Step 17: Extracted Nutrition Facts Table UI
 * Created dedicated table widget [`lib/ui/widgets/extracted_nutrition_table.dart`](file:///home/hiese/Projects/Flutter/calories_calculator/lib/ui/widgets/extracted_nutrition_table.dart):
   * **Food Title & Portion Header:** Displays food item name, serving size, and an eye-catching calorie box (`xxx KCAL / CALO`).
@@ -222,4 +233,15 @@ This document outlines the chronological steps taken from the initial blank Flut
 * Validated with unit tests in `test/ai_nutrition_extractor_test.dart` and `test/test_image_ocr_test.dart`.
 * `flutter analyze` ➔ 0 errors, 0 warnings.
 * Full test suite ➔ 100% pass rate.
+
+---
+
+## Step 19: Pure Total Calories Output Flow (Auto-Detect vs User Prompt)
+* **Streamlined Output Interface:** Refined the extraction output so it **exclusively displays the total calories the user will get**.
+* **Two-Branch Decision Flow:**
+  1. **Total detected in image:** Model automatically calculates whole-product calories (e.g. 100 kcal / 100ml on a 500ml Coca = $100 \times 5 = 500\text{ kcal}$) and prints solely **500 kcal** with a one-click "Lưu vào nhật ký" button.
+  2. **Total NOT detected in image:** Model detects base calories, displays a clear notification stating the whole product volume is missing, and prompts the user with an input field to enter it. Recalculates total calories in real-time as the user inputs the quantity.
+* **Eliminated Bottom Sheet Interruption:** User sees the clean calculation card directly on the scan screen without modal disruption.
+* **Unit Tests Added:** Added dedicated unit tests for the Coca-Cola 100 kcal/100ml × 500ml flow (both auto-detected and user-prompted).
+* Static analysis: 0 issues; all 12 test suites passing.
 
