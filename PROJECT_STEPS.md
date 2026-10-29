@@ -181,8 +181,13 @@ This document outlines the chronological steps taken from the initial blank Flut
 
 ---
 
-## Step 15: Final Verification
-* `flutter analyze` → **No issues found**
-* `flutter test` → **11/11 tests passed**
-* Committed to `main` branch (commit `a8b7273`)
+## Step 16: Comprehensive OCR Pipeline Debugging & Fixes
+* **Root cause 1 (Asset Loading Error):** `flutter_tesseract_ocr` specifically expects `assets/tessdata_config.json` containing `{"files": ["vie.traineddata", "eng.traineddata"]}`. Created this file and declared it explicitly in `pubspec.yaml`.
+* **Root cause 2 (Linux Desktop Execution):** `flutter_tesseract_ocr` plugin only provides Android and iOS method channels. On Linux, updated `TesseractOcrEngine` to invoke the native `/usr/bin/tesseract` CLI directly (`tesseract image stdout -l vie+eng --tessdata-dir ...`), with fallback to plugin and contextual mock presets.
+* **Root cause 3 (Android ML Kit Dependencies):** Added `com.google.mlkit.vision.DEPENDENCIES` (`ocr`) meta-data tag in `AndroidManifest.xml` so Google Play Services automatically downloads OCR models, and set `minSdk = 21` in `android/app/build.gradle.kts`.
+* **Root cause 4 (Smart Android Fallback):** Updated `OcrEngineFactory` on Android to use a smart composite engine: runs Google ML Kit first; if empty or failed, automatically falls back to Tesseract OCR.
+* **Root cause 5 (Vietnamese Nutrition Label Parsing):** Enhanced `RegexNutritionParser` to recognize Vietnamese nutritional terms (`năng lượng`, `calo`, `chất đạm`, `đạm`, `tinh bột`, `đường`, `chất béo`, `béo`) and preserved Vietnamese Unicode characters with accents in food titles.
+* Validated with unit tests (`test/ai_nutrition_extractor_test.dart`) including a new dedicated Vietnamese food label test case.
+* `flutter analyze` ➔ 0 errors, 0 warnings.
+* Full test suite ➔ 100% pass rate.
 
