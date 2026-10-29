@@ -2,6 +2,7 @@ import 'nutrition_extractor.dart';
 
 /// Heuristic & Arithmetic Nutrition Parser
 /// Calculates total cumulative nutrients from single-item labels, multi-item receipts, or meal combos.
+/// Hỗ trợ cả nhãn dinh dưỡng Tiếng Anh (FDA/EU) và Tiếng Việt (VN standard).
 class RegexNutritionParser {
   static NutritionExtractionResult parse(String rawOcrText) {
     if (rawOcrText.trim().isEmpty) {
@@ -27,6 +28,11 @@ class RegexNutritionParser {
           !lower.contains('calories') &&
           !lower.contains('total') &&
           !lower.contains('daily') &&
+          !lower.contains('thông tin') &&
+          !lower.contains('dinh dưỡng') &&
+          !lower.contains('khẩu phần') &&
+          !lower.contains('năng lượng') &&
+          !lower.contains('thành phần') &&
           line.length > 3) {
         nonGenericLines.add(_cleanFoodName(line));
       }
@@ -42,7 +48,10 @@ class RegexNutritionParser {
 
     // 2. Serving size & servings per container multiplier
     String servingSize = '1 serving';
-    final servingRegex = RegExp(r'serving\s*size[:\s]+([^\n\r,]+)', caseSensitive: false);
+    final servingRegex = RegExp(
+      r'(?:serving\s*size|khẩu\s*phần|khau\s*phan)[:\s]+([^\n\r,]+)',
+      caseSensitive: false,
+    );
     final servingMatch = servingRegex.firstMatch(rawOcrText);
     if (servingMatch != null) {
       servingSize = servingMatch.group(1)?.trim() ?? '1 serving';
@@ -50,7 +59,7 @@ class RegexNutritionParser {
 
     int servingMultiplier = 1;
     final containerServingsRegex = RegExp(
-      r'(?:servings?\s+per\s+container|about\s+(\d+)\s+servings?)[:\s]*(\d+)?',
+      r'(?:servings?\s+per\s+container|about\s+(\d+)\s+servings?|số\s+khẩu\s+phần[:\s]*(\d+))',
       caseSensitive: false,
     );
     final containerMatch = containerServingsRegex.firstMatch(rawOcrText);
@@ -62,8 +71,9 @@ class RegexNutritionParser {
     }
 
     // 3. Multi-item Calorie Detection & Summation
+    // Hỗ trợ: Calories, Energy, Cal, Kcal, Năng lượng, Calo
     final caloriesRegex = RegExp(
-      r'(?:calories|energy|cal)[^\d\n]*?(\d+)(?:\s*kcal)?',
+      r'(?:calories|energy|cal|calo|năng\s*lượng|nang\s*luong)[^\d\n]*?(\d+)(?:\s*(?:kcal|cal|kj))?',
       caseSensitive: false,
     );
     final calorieMatches = caloriesRegex.allMatches(rawOcrText).toList();
@@ -77,38 +87,52 @@ class RegexNutritionParser {
       }
     }
 
+    // Fallback nếu calorieRegex không bắt được nhưng có dòng kết thúc bằng 'kcal'
+    if (individualCalories.isEmpty) {
+      final kcalStandaloneRegex = RegExp(r'(\d+)\s*(?:kcal|cal)\b', caseSensitive: false);
+      for (final m in kcalStandaloneRegex.allMatches(rawOcrText)) {
+        final val = int.tryParse(m.group(1) ?? '0') ?? 0;
+        if (val > 0) {
+          individualCalories.add(val);
+        }
+      }
+    }
+
     // 4. Multi-item Macronutrient Detection & Summation
-    // Protein
+    // Protein / Chất đạm / Đạm / Protid
     final proteinRegex = RegExp(
-      r'(?:protein)[^\d\n]*?(\d+(?:\.\d+)?)\s*g?',
+      r'(?:protein|chất\s*đạm|chat\s*dam|đạm|dam|protid)[^\d\n]*?(\d+(?:[.,]\d+)?)\s*g?',
       caseSensitive: false,
     );
     final proteinMatches = proteinRegex.allMatches(rawOcrText).toList();
     double totalProtein = 0.0;
     for (final m in proteinMatches) {
-      totalProtein += double.tryParse(m.group(1) ?? '0') ?? 0.0;
+      final rawNum = (m.group(1) ?? '0').replaceAll(',', '.');
+      totalProtein += double.tryParse(rawNum) ?? 0.0;
     }
 
-    // Carbohydrates
+    // Carbohydrates / Tinh bột / Đường / Glucid / Carbs
     final carbsRegex = RegExp(
-      r'(?:total\s+carbohydrate|carbohydrates|carbs?)[^\d\n]*?(\d+(?:\.\d+)?)\s*g?',
+      r'(?:total\s+carbohydrate|carbohydrates|carbs?|carbohydrat|tinh\s*bột|tinh\s*bot|đường|duong|glucid)[^\d\n]*?(\d+(?:[.,]\d+)?)\s*g?',
       caseSensitive: false,
     );
     final carbsMatches = carbsRegex.allMatches(rawOcrText).toList();
     double totalCarbs = 0.0;
     for (final m in carbsMatches) {
-      totalCarbs += double.tryParse(m.group(1) ?? '0') ?? 0.0;
+      final rawNum = (m.group(1) ?? '0').replaceAll(',', '.');
+      totalCarbs += double.tryParse(rawNum) ?? 0.0;
     }
 
-    // Total Fat
+    // Total Fat / Chất béo / Béo / Lipid
     final fatRegex = RegExp(
-      r'(?:total\s+fat|fats?)[^\d\n]*?(\d+(?:\.\d+)?)\s*g?',
+      r'(?:total\s+fat|fats?|chất\s*béo|chat\s*beo|béo|beo|lipid)[^\d\n]*?(\d+(?:[.,]\d+)?)\s*g?',
       caseSensitive: false,
     );
     final fatMatches = fatRegex.allMatches(rawOcrText).toList();
     double totalFat = 0.0;
     for (final m in fatMatches) {
-      totalFat += double.tryParse(m.group(1) ?? '0') ?? 0.0;
+      final rawNum = (m.group(1) ?? '0').replaceAll(',', '.');
+      totalFat += double.tryParse(rawNum) ?? 0.0;
     }
 
     // 5. Calculate cumulative total or single item
@@ -166,10 +190,12 @@ class RegexNutritionParser {
     );
   }
 
+  /// Làm sạch tên món ăn — GIỮ NGUYÊN ký tự tiếng Việt có dấu
   static String _cleanFoodName(String text) {
-    var cleaned = text.replaceAll(RegExp(r'[^a-zA-Z0-9\s-]'), '').trim();
-    if (cleaned.length > 35) {
-      cleaned = cleaned.substring(0, 35);
+    // Giữ các ký tự chữ (kể cả có dấu Unicode), số, khoảng trắng và gạch nối
+    var cleaned = text.replaceAll(RegExp(r'[^\p{L}\p{N}\s-]', unicode: true), '').trim();
+    if (cleaned.length > 40) {
+      cleaned = cleaned.substring(0, 40);
     }
     return cleaned.isNotEmpty ? cleaned : 'Food Item';
   }

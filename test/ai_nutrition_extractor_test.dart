@@ -97,5 +97,24 @@ Total Fat: 10g
       expect(result.modelUsed, contains('Qwen2.5-0.5B-Instruct'));
       expect(result.calculationNotes, isNotNull);
     });
+
+    test('RegexNutritionParser extracts Vietnamese food packaging labels correctly', () {
+      const vietnameseLabelOcr = '''
+SỮA CHUA NẾP CẨM HÀ NỘI
+Thông tin dinh dưỡng
+Khẩu phần: 1 hộp (100g)
+Năng lượng: 125 kcal
+Chất đạm: 4.5g
+Carbohydrate: 22.0g
+Chất béo: 3.2g
+''';
+      final result = RegexNutritionParser.parse(vietnameseLabelOcr);
+
+      expect(result.foodName, contains('SỮA CHUA NẾP CẨM HÀ NỘI'));
+      expect(result.calories, equals(125));
+      expect(result.protein, equals(4.5));
+      expect(result.carbs, equals(22.0));
+      expect(result.fat, equals(3.2));
+    });
   });
 }

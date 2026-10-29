@@ -1,0 +1,30 @@
+{
+  "files": [
+    "vie.traineddata",
+    "eng.traineddata"
+  ],
+  "_comment": "Cấu hình Tesseract OCR cho ứng dụng Calories Calculator (tương thích flutter_tesseract_ocr)",
+  "version": "1.0.0",
+  "engine": "tesseract",
+  "languages": {
+    "primary": "vie",
+    "secondary": "eng",
+    "combined": "vie+eng"
+  },
+  "traineddata_files": [
+    {
+      "lang": "vie",
+      "filename": "vie.traineddata",
+      "asset_path": "assets/tessdata/vie.traineddata"
+    },
+    {
+      "lang": "eng",
+      "filename": "eng.traineddata",
+      "asset_path": "assets/tessdata/eng.traineddata"
+    }
+  ],
+  "ocr_params": {
+    "psm": "3",
+    "preserve_interword_spaces": "1"
+  }
+}

@@ -73,6 +73,7 @@ flutter:
     # Thư mục Tesseract traineddata + config
     - assets/tessdata/
     # Khai báo explicit để rootBundle.loadString() tìm thấy file
+    - assets/tessdata_config.json
     - assets/tessdata/tessdata_config.json
     - assets/tessdata/vie.traineddata
     - assets/tessdata/eng.traineddata

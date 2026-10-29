@@ -10,63 +10,43 @@ import 'tesseract_ocr_engine.dart';
 /// ┌─────────────────┬────────────────────────────────────────────────┐
 /// │ Nền tảng        │ OCR Engine                                     │
 /// ├─────────────────┼────────────────────────────────────────────────┤
-/// │ Android         │ Google ML Kit — nhanh, on-device, không cần   │
-/// │                 │ file traineddata riêng. Hỗ trợ đa ngôn ngữ.  │
+/// │ Android         │ Google ML Kit (ưu tiên) + Tesseract fallback   │
 /// ├─────────────────┼────────────────────────────────────────────────┤
-/// │ Linux           │ Tesseract OCR — dùng file vie+eng.traineddata │
-/// │                 │ Copy từ assets ra thư mục cache khi khởi động │
+/// │ Linux           │ Tesseract OCR (hỗ trợ CLI native + traineddata)│
 /// ├─────────────────┼────────────────────────────────────────────────┤
-/// │ iOS / macOS     │ Google ML Kit (fallback)                       │
+/// │ iOS / macOS     │ Google ML Kit                                  │
 /// ├─────────────────┼────────────────────────────────────────────────┤
-/// │ Web / Windows   │ Google ML Kit (fallback giới hạn)             │
+/// │ Web / Windows   │ Google ML Kit                                  │
 /// └─────────────────┴────────────────────────────────────────────────┘
-///
-/// Cách dùng:
-/// ```dart
-/// final OcrEngine ocrEngine = OcrEngineFactory.create();
-/// final OcrResult result = await ocrEngine.processImage(imagePath);
-/// ```
 class OcrEngineFactory {
-  // Ngăn tạo instance của factory class
   OcrEngineFactory._();
 
-  /// Tạo và trả về OCR engine phù hợp với nền tảng hiện tại
-  ///
-  /// - Nếu là Android: trả về [GoogleMlKitOcrEngine] (nhanh, chính xác cao)
-  /// - Nếu là Linux: trả về [TesseractOcrEngine] (cần tessdata files)
-  /// - Mặc định: trả về [GoogleMlKitOcrEngine] cho các nền tảng khác
+  /// Tạo OCR engine thích ứng theo nền tảng
   static OcrEngine create() {
-    // Web không hỗ trợ Platform.isAndroid, cần guard kIsWeb trước
     if (kIsWeb) {
-      // Web: dùng ML Kit làm fallback (giới hạn chức năng)
       return GoogleMlKitOcrEngine();
     }
 
     if (Platform.isAndroid) {
-      // Android: Google ML Kit — tích hợp với Google Play Services
-      // Không cần file traineddata, xử lý on-device nhanh và chính xác
-      return GoogleMlKitOcrEngine();
+      // Trên Android: Dùng engine thông minh (ML Kit làm chính, Tesseract làm fallback)
+      return _AndroidSmartOcrEngine();
     }
 
     if (Platform.isLinux) {
-      // Linux: Tesseract OCR — yêu cầu file tessdata trong assets/tessdata/
-      // Xem assets/tessdata/TESSDATA_REQUIRED.md để biết cách tải file
+      // Trên Linux: Dùng Tesseract OCR với vie+eng traineddata
       return TesseractOcrEngine();
     }
 
     if (Platform.isIOS || Platform.isMacOS) {
-      // iOS / macOS: Google ML Kit (tương thích tốt trên Apple platforms)
       return GoogleMlKitOcrEngine();
     }
 
-    // Windows hoặc nền tảng khác: dùng ML Kit làm fallback mặc định
     return GoogleMlKitOcrEngine();
   }
 
-  /// Trả về tên engine sẽ được dùng trên nền tảng hiện tại (để debug / UI)
   static String get platformEngineName {
     if (kIsWeb) return 'Google ML Kit (Web)';
-    if (Platform.isAndroid) return 'Google ML Kit (Android)';
+    if (Platform.isAndroid) return 'Google ML Kit / Tesseract (Android)';
     if (Platform.isLinux) return 'Tesseract OCR (Linux)';
     if (Platform.isIOS) return 'Google ML Kit (iOS)';
     if (Platform.isMacOS) return 'Google ML Kit (macOS)';
@@ -74,3 +54,28 @@ class OcrEngineFactory {
   }
 }
 
+/// Engine thông minh cho Android:
+/// 1. Ưu tiên chạy Google ML Kit on-device (nhanh, chuẩn).
+/// 2. Nếu ML Kit trả về rỗng hoặc lỗi (ví dụ chưa kịp tải model Play Services),
+///    tự động fallback sang Tesseract OCR on-device.
+class _AndroidSmartOcrEngine implements OcrEngine {
+  final GoogleMlKitOcrEngine _mlKit = GoogleMlKitOcrEngine();
+  final TesseractOcrEngine _tesseract = TesseractOcrEngine();
+
+  @override
+  Future<OcrResult> processImage(String imagePath) async {
+    try {
+      final mlKitResult = await _mlKit.processImage(imagePath);
+      if (!mlKitResult.isEmpty) {
+        return mlKitResult;
+      }
+      // ignore: avoid_print
+      print('[AndroidSmartOCR] ML Kit không nhận diện được chữ → Fallback sang Tesseract');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[AndroidSmartOCR] ML Kit lỗi ($e) → Fallback sang Tesseract');
+    }
+
+    return await _tesseract.processImage(imagePath);
+  }
+}
