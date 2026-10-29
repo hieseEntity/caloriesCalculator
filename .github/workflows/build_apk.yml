@@ -32,6 +32,14 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Install System Dependencies (Tesseract OCR)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-vie
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
       - name: Install Dependencies
         run: flutter pub get
 
