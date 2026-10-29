@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/models/food_entry.dart';
 import '../../core/theme/app_theme.dart';
 // AiNutritionExtractor interface + NutritionExtractionResult model
 import '../../features/ai_nutrition/nutrition_extractor.dart';
@@ -12,6 +13,7 @@ import '../../features/ocr/ocr_engine_factory.dart';
 import '../../features/ocr/ocr_service.dart';
 import '../../features/tracker/tracker_controller.dart';
 import '../widgets/confirmation_dialog.dart';
+import '../widgets/extracted_nutrition_table.dart';
 
 class ScanScreen extends StatefulWidget {
   final TrackerController trackerController;
@@ -110,6 +112,18 @@ class _ScanScreenState extends State<ScanScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _saveEntry(FoodEntry entry) async {
+    await widget.trackerController.addFoodEntry(entry, widget.targetCalories);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã thêm "${entry.name}" (${entry.calories} kcal) vào nhật ký hôm nay!'),
+        backgroundColor: AppTheme.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _runPresetDemo(String sampleType) async {
@@ -262,6 +276,41 @@ class _ScanScreenState extends State<ScanScreen> {
             ),
             const SizedBox(height: 24),
 
+            // Bảng Thông Tin Dinh Dưỡng Bóc Tách (Extracted Nutrition Table)
+            if (_extractionResult != null) ...[
+              ExtractedNutritionTable(
+                extractionResult: _extractionResult!,
+                targetCalories: widget.targetCalories,
+                onEdit: () async {
+                  final entry = await ConfirmationDialog.show(
+                    context,
+                    extractionResult: _extractionResult!,
+                    dateString: widget.trackerController.currentDate,
+                    imagePath: _selectedImagePath,
+                  );
+                  if (entry != null) {
+                    await _saveEntry(entry);
+                  }
+                },
+                onConfirm: () async {
+                  final entry = FoodEntry(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: _extractionResult!.foodName,
+                    calories: _extractionResult!.calories,
+                    protein: _extractionResult!.protein,
+                    carbs: _extractionResult!.carbs,
+                    fat: _extractionResult!.fat,
+                    timestamp: DateTime.now(),
+                    dateString: widget.trackerController.currentDate,
+                    imagePath: _selectedImagePath,
+                    rawOcrText: _extractionResult!.rawOcrInput,
+                  );
+                  await _saveEntry(entry);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Pipeline Telemetry Card if results present
             if (_ocrResult != null && _extractionResult != null) ...[
               Container(
@@ -269,18 +318,18 @@ class _ScanScreenState extends State<ScanScreen> {
                 decoration: BoxDecoration(
                   color: AppTheme.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.caloriesColor.withOpacity(0.3)),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.check_circle, color: AppTheme.caloriesColor, size: 18),
+                        const Icon(Icons.speed_rounded, color: AppTheme.caloriesColor, size: 18),
                         const SizedBox(width: 8),
                         const Text(
-                          'Pipeline Telemetry',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                          'Chi tiết Pipeline & Độ trễ (Telemetry)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                         ),
                         const Spacer(),
                         Container(
@@ -300,19 +349,6 @@ class _ScanScreenState extends State<ScanScreen> {
                     _TelemetryRow(label: 'OCR Engine', value: _ocrResult!.engine),
                     _TelemetryRow(label: 'AI Extractor', value: _extractionResult!.modelUsed),
                     _TelemetryRow(label: 'Confidence', value: '${(_extractionResult!.confidence * 100).toInt()}%'),
-                    _TelemetryRow(label: 'Calculated Calories', value: '${_extractionResult!.calories} kcal'),
-                    _TelemetryRow(
-                      label: 'Calculated Macros',
-                      value: 'P: ${_extractionResult!.protein.toInt()}g | C: ${_extractionResult!.carbs.toInt()}g | F: ${_extractionResult!.fat.toInt()}g',
-                    ),
-                    if (_extractionResult!.calculationNotes != null &&
-                        _extractionResult!.calculationNotes!.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      _TelemetryRow(
-                        label: 'Calculation',
-                        value: _extractionResult!.calculationNotes!,
-                      ),
-                    ],
                   ],
                 ),
               ),

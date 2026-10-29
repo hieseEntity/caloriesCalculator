@@ -172,7 +172,44 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            // Bảng tóm tắt thông tin bóc tách
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.cardColor.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'BẢNG BÓC TÁCH GỐC (EXTRACTED)',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.white70),
+                      ),
+                      Text(
+                        'Khẩu phần: ${widget.extractionResult.servingSize}',
+                        style: const TextStyle(fontSize: 11, color: AppTheme.caloriesColor, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white10, height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _CompactMacroBadge(label: 'Năng lượng', value: '${widget.extractionResult.calories} kcal', color: AppTheme.caloriesColor),
+                      _CompactMacroBadge(label: 'Đạm (P)', value: '${widget.extractionResult.protein.toStringAsFixed(1)}g', color: AppTheme.proteinColor),
+                      _CompactMacroBadge(label: 'Carb (C)', value: '${widget.extractionResult.carbs.toStringAsFixed(1)}g', color: AppTheme.carbsColor),
+                      _CompactMacroBadge(label: 'Béo (F)', value: '${widget.extractionResult.fat.toStringAsFixed(1)}g', color: AppTheme.fatColor),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -300,6 +337,42 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CompactMacroBadge extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _CompactMacroBadge({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.white54,
+          ),
+        ),
+      ],
     );
   }
 }
