@@ -1,4 +1,28 @@
+/// ============================================================
+/// Prompt Templates — System Prompt cho LLM tính toán dinh dưỡng
+/// ============================================================
+library;
+///
+/// File này định nghĩa các prompt template dùng trong pipeline:
+///
+///   [systemPrompt]            — System prompt hướng dẫn LLM cách tính tổng dinh dưỡng
+///   [buildQwenChatMlPrompt]   — Tạo ChatML prompt đầy đủ từ raw OCR text
+///   [llamaCppGbnfGrammar]     — GBNF grammar để llama.cpp chỉ sinh JSON hợp lệ
+///
+/// Pipeline:
+///   OCR raw text → [buildQwenChatMlPrompt] → Qwen2.5-0.5B LLM
+///               → JSON output → RegexNutritionParser (parse kết quả)
+
 class PromptTemplates {
+  // ------------------------------------------------------------------
+  // System Prompt — Hướng dẫn LLM cách phân tích OCR text và tính dinh dưỡng
+  //
+  // Các quy tắc quan trọng mà LLM phải tuân theo:
+  //   1. Phát hiện nhiều món ăn / serving trong cùng một ảnh
+  //   2. CỘNG TỔNG calories & macros của TẤT CẢ các món
+  //   3. Dùng công thức Atwater để kiểm tra lại nếu calories bị thiếu
+  //   4. Trả về DẠNG JSON THUẦN TÚY (không thêm markdown hay text thừa)
+  // ------------------------------------------------------------------
   static const String systemPrompt = '''
 You are an expert on-device nutrition intelligence AI running locally.
 Your task is to analyze raw OCR text from food packaging, nutrition fact tables, restaurant menus, or receipts and CALCULATE the TOTAL nutritional values.
@@ -31,7 +55,16 @@ OUTPUT SCHEMA (STRICT JSON ONLY):
 Do not write markdown quotes or extra words before or after the JSON.
 ''';
 
-  /// Builds ChatML formatted prompt for Qwen2.5-0.5B-Instruct
+  // ------------------------------------------------------------------
+  // Tạo ChatML prompt đầy đủ cho Qwen2.5-0.5B-Instruct
+  //
+  // Định dạng ChatML là format mà Qwen model yêu cầu:
+  //   <|im_start|>system\n {system_prompt} <|im_end|>
+  //   <|im_start|>user\n   {ocr_text}      <|im_end|>
+  //   <|im_start|>assistant\n  (LLM sẽ sinh tiếp từ đây)
+  //
+  // [rawOcrText] — văn bản thô từ OCR, được nhúng vào user message
+  // ------------------------------------------------------------------
   static String buildQwenChatMlPrompt(String rawOcrText) {
     return '''<|im_start|>system
 $systemPrompt<|im_end|>
@@ -45,10 +78,17 @@ $rawOcrText
 ''';
   }
 
-  /// GBNF Grammar for llama.cpp to enforce valid JSON generation at decode time
+  // ------------------------------------------------------------------
+  // GBNF Grammar cho llama.cpp
+  //
+  // Khi dùng llama.cpp để chạy LLM inference thực tế,
+  // grammar này được truyền vào để ràng buộc token generation:
+  //   → LLM chỉ có thể sinh ra JSON hợp lệ theo schema định sẵn
+  //   → Ngăn LLM sinh ra text rác hoặc format sai
+  // ------------------------------------------------------------------
   static const String llamaCppGbnfGrammar = r'''
 root ::= "{" ws "\"food_name\":" ws string "," ws "\"serving_size\":" ws string "," ws "\"calories\":" ws integer "," ws "\"protein\":" ws number "," ws "\"carbs\":" ws number "," ws "\"fat\":" ws number "," ws "\"calculation_notes\":" ws string ws "}"
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
+string ::= "\"" ([^"\\] | "\\" (["\\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
 integer ::= ("-"? [0-9]+)
 number ::= ("-"? [0-9]+ ("." [0-9]+)?)
 ws ::= [ \t\n\r]*

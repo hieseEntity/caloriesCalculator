@@ -2,9 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_theme.dart';
+// AiNutritionExtractor interface + NutritionExtractionResult model
 import '../../features/ai_nutrition/nutrition_extractor.dart';
-import '../../features/ai_nutrition/qwen_llm_service.dart';
-import '../../features/ocr/google_mlkit_ocr_engine.dart';
+// QwenNutritionExtractor — LLM pipeline: OCR text → prompt → tính dinh dưỡng
+import '../../features/ai_nutrition/qwen_llm_service.dart' show QwenNutritionExtractor;
+// OcrEngineFactory: tự động chọn engine theo nền tảng
+//   Android → Google ML Kit | Linux → Tesseract OCR
+import '../../features/ocr/ocr_engine_factory.dart';
 import '../../features/ocr/ocr_service.dart';
 import '../../features/tracker/tracker_controller.dart';
 import '../widgets/confirmation_dialog.dart';
@@ -25,7 +29,11 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final ImagePicker _picker = ImagePicker();
-  final OcrEngine _ocrEngine = GoogleMlKitOcrEngine();
+  // OCR Engine được chọn tự động theo nền tảng:
+  //   Android → Google ML Kit (nhanh, chính xác, không cần file riêng)
+  //   Linux   → Tesseract OCR (cần assets/tessdata/vie.traineddata + eng.traineddata)
+  final OcrEngine _ocrEngine = OcrEngineFactory.create();
+  // QwenNutritionExtractor: nhận OCR text → tạo prompt → tính toán dinh dưỡng
   final AiNutritionExtractor _aiExtractor = QwenNutritionExtractor();
 
   bool _isProcessing = false;
@@ -59,7 +67,8 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() {
       _selectedImagePath = path;
       _isProcessing = true;
-      _currentStep = 'Phase 2: Extracting text via Google ML Kit...';
+      // Hiển thị tên engine đang dùng theo nền tảng (Android: ML Kit, Linux: Tesseract)
+      _currentStep = 'Phase 2: Extracting text via ${OcrEngineFactory.platformEngineName}...';
       _ocrResult = null;
       _extractionResult = null;
     });
@@ -144,7 +153,8 @@ class _ScanScreenState extends State<ScanScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                         ),
                         Text(
-                          'Google ML Kit OCR ➔ Qwen2.5-0.5B Nutrient Calculator',
+                          // Hiển thị tên OCR engine đang dùng theo nền tảng
+                          '${OcrEngineFactory.platformEngineName} → Qwen2.5-0.5B LLM',
                           style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6)),
                         ),
                       ],
