@@ -4,117 +4,80 @@ import 'package:calories_calculator/features/ai_nutrition/regex_nutrition_parser
 import 'package:calories_calculator/features/ai_nutrition/qwen_llm_service.dart';
 
 void main() {
-  group('AI Calorie & Macro Extraction Tests', () {
-    const sampleLabelOcr = '''
+  group('AI Total Calorie Extraction Tests', () {
+    const singleBarOcr = '''
 PROTEIN CRUNCH BAR
 Nutrition Facts
 Serving Size: 1 Bar (60g)
-Calories: 210
-Total Fat: 7g (9% DV)
-Total Carbohydrate: 22g (8% DV)
-Protein: 20g
+Calories: 210 kcal
 ''';
 
-    const multiItemOcr = '''
-HEALTHY LUNCH COMBO
-Item 1: Grilled Chicken Bowl
-Calories: 450 kcal
-Protein: 38g
-Carbs: 45g
-Fat: 12g
-
-Item 2: Greek Yogurt & Berries
-Calories: 150 kcal
-Protein: 15g
-Carbs: 18g
-Fat: 2g
+    const netWeightProductOcr = '''
+KHOAI TÂY SẤY GIÒN
+Thông tin dinh dưỡng
+Khẩu phần: 100g
+Năng lượng: 400 kcal
+Khối lượng tịnh: 250g
 ''';
 
-    const missingCaloriesOcr = '''
-HOMEMADE ENERGY BOWL
-Protein: 25g
-Total Carbohydrate: 50g
-Total Fat: 10g
+    const missingNetWeightOcr = '''
+BÁNH QUY BƠ PHÁP
+Thông tin dinh dưỡng
+Khẩu phần: 100g
+Năng lượng: 350 kcal
 ''';
 
-    test('RegexNutritionParser extracts macros correctly from single-item OCR text', () {
-      final result = RegexNutritionParser.parse(sampleLabelOcr);
+    test('RegexNutritionParser extracts calories correctly from single-item OCR text', () {
+      final result = RegexNutritionParser.parse(singleBarOcr);
 
       expect(result.foodName, contains('PROTEIN CRUNCH BAR'));
       expect(result.servingSize, contains('1 Bar (60g)'));
       expect(result.calories, equals(210));
-      expect(result.fat, equals(7.0));
-      expect(result.carbs, equals(22.0));
-      expect(result.protein, equals(20.0));
-      expect(result.confidence, greaterThanOrEqualTo(0.8));
+      expect(result.hasTotalQuantity, isTrue);
     });
 
-    test('RegexNutritionParser calculates sum across multiple items in OCR text', () {
-      final result = RegexNutritionParser.parse(multiItemOcr);
+    test('RegexNutritionParser automatically calculates total calories from Net Weight', () {
+      final result = RegexNutritionParser.parse(netWeightProductOcr);
 
-      // 450 + 150 = 600 kcal
-      expect(result.calories, equals(600));
-      // 38 + 15 = 53g protein
-      expect(result.protein, equals(53.0));
-      // 45 + 18 = 63g carbs
-      expect(result.carbs, equals(63.0));
-      // 12 + 2 = 14g fat
-      expect(result.fat, equals(14.0));
-      expect(result.calculationNotes, contains('Summed 2 items'));
-      expect(result.calculationNotes, contains('450 + 150 = 600 kcal'));
+      // 400 kcal per 100g * (250g / 100g) = 1000 kcal total
+      expect(result.calories, equals(1000));
+      expect(result.hasTotalQuantity, isTrue);
+      expect(result.totalProductQuantity, equals(250.0));
+      expect(result.calculationNotes, contains('1000 kcal tổng'));
     });
 
-    test('RegexNutritionParser calculates total calories via Atwater formula when calories are missing', () {
-      final result = RegexNutritionParser.parse(missingCaloriesOcr);
+    test('RegexNutritionParser flags missing total weight and allows user recalculation', () {
+      final result = RegexNutritionParser.parse(missingNetWeightOcr);
 
-      // (25 * 4) + (50 * 4) + (10 * 9) = 100 + 200 + 90 = 390 kcal
-      expect(result.calories, equals(390));
-      expect(result.protein, equals(25.0));
-      expect(result.carbs, equals(50.0));
-      expect(result.fat, equals(10.0));
-      expect(result.calculationNotes, contains('Atwater formula'));
+      expect(result.calories, equals(350));
+      expect(result.hasTotalQuantity, isFalse);
+      expect(result.calculationNotes, contains('Chưa nhận diện được tổng khối lượng'));
+
+      // User enters 200g
+      final updated = result.copyWithTotalQuantity(200);
+      expect(updated.calories, equals(700)); // 350 * 2 = 700 kcal
+      expect(updated.hasTotalQuantity, isTrue);
+      expect(updated.totalProductQuantity, equals(200.0));
     });
 
-    test('PromptTemplates formats Qwen2.5 ChatML with calculation instructions', () {
+    test('PromptTemplates formats Qwen2.5 ChatML with TOTAL product calorie instructions', () {
       final prompt = PromptTemplates.buildQwenChatMlPrompt('Sample OCR');
 
       expect(prompt, contains('<|im_start|>system'));
-      expect(prompt, contains('CALCULATE the TOTAL nutritional values'));
-      expect(prompt, contains('ATWATER CALORIE CROSS-CHECK'));
+      expect(prompt, contains('TOTAL CALORIES OF THE ENTIRE PRODUCT'));
+      expect(prompt, contains('FOCUS EXCLUSIVELY ON CALORIES'));
       expect(prompt, contains('<|im_start|>user'));
       expect(prompt, contains('Sample OCR'));
       expect(prompt, contains('<|im_start|>assistant'));
     });
 
-    test('QwenNutritionExtractor completes end-to-end extraction with calculation notes', () async {
+    test('QwenNutritionExtractor completes end-to-end extraction focusing on calories', () async {
       final extractor = QwenNutritionExtractor();
-      final result = await extractor.extractNutrition(multiItemOcr);
+      final result = await extractor.extractNutrition(netWeightProductOcr);
 
-      expect(result.calories, equals(600));
-      expect(result.protein, equals(53.0));
-      expect(result.carbs, equals(63.0));
-      expect(result.fat, equals(14.0));
-      expect(result.modelUsed, contains('Qwen2.5-0.5B-Instruct'));
-      expect(result.calculationNotes, isNotNull);
-    });
-
-    test('RegexNutritionParser extracts Vietnamese food packaging labels correctly', () {
-      const vietnameseLabelOcr = '''
-SỮA CHUA NẾP CẨM HÀ NỘI
-Thông tin dinh dưỡng
-Khẩu phần: 1 hộp (100g)
-Năng lượng: 125 kcal
-Chất đạm: 4.5g
-Carbohydrate: 22.0g
-Chất béo: 3.2g
-''';
-      final result = RegexNutritionParser.parse(vietnameseLabelOcr);
-
-      expect(result.foodName, contains('SỮA CHUA NẾP CẨM HÀ NỘI'));
-      expect(result.calories, equals(125));
-      expect(result.protein, equals(4.5));
-      expect(result.carbs, equals(22.0));
-      expect(result.fat, equals(3.2));
+      expect(result.calories, equals(1000));
+      expect(result.totalProductQuantity, equals(250.0));
+      expect(result.hasTotalQuantity, isTrue);
     });
   });
 }

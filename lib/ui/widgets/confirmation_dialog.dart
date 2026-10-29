@@ -3,6 +3,7 @@ import '../../core/models/food_entry.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/ai_nutrition/nutrition_extractor.dart';
 
+/// Hộp thoại xem lại và xác nhận TỔNG CALO trước khi lưu vào nhật ký
 class ConfirmationDialog extends StatefulWidget {
   final NutritionExtractionResult extractionResult;
   final String dateString;
@@ -40,10 +41,7 @@ class ConfirmationDialog extends StatefulWidget {
 class _ConfirmationDialogState extends State<ConfirmationDialog> {
   late TextEditingController _nameController;
   late TextEditingController _caloriesController;
-  late TextEditingController _proteinController;
-  late TextEditingController _carbsController;
-  late TextEditingController _fatController;
-
+  late TextEditingController _quantityController;
   bool _showRawOcr = false;
 
   @override
@@ -51,29 +49,29 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.extractionResult.foodName);
     _caloriesController = TextEditingController(text: widget.extractionResult.calories.toString());
-    _proteinController = TextEditingController(text: widget.extractionResult.protein.toStringAsFixed(1));
-    _carbsController = TextEditingController(text: widget.extractionResult.carbs.toStringAsFixed(1));
-    _fatController = TextEditingController(text: widget.extractionResult.fat.toStringAsFixed(1));
+
+    final qty = widget.extractionResult.totalProductQuantity;
+    _quantityController = TextEditingController(
+      text: qty != null && qty > 0 ? (qty % 1 == 0 ? qty.toInt().toString() : qty.toString()) : '',
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _caloriesController.dispose();
-    _proteinController.dispose();
-    _carbsController.dispose();
-    _fatController.dispose();
+    _quantityController.dispose();
     super.dispose();
   }
 
   void _onConfirm() {
     final entry = FoodEntry(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Meal',
+      name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Sản phẩm',
       calories: int.tryParse(_caloriesController.text) ?? 0,
-      protein: double.tryParse(_proteinController.text) ?? 0.0,
-      carbs: double.tryParse(_carbsController.text) ?? 0.0,
-      fat: double.tryParse(_fatController.text) ?? 0.0,
+      protein: 0.0,
+      carbs: 0.0,
+      fat: 0.0,
       timestamp: DateTime.now(),
       dateString: widget.dateString,
       imagePath: widget.imagePath,
@@ -117,10 +115,10 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.15),
+                    color: AppTheme.caloriesColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.auto_awesome, color: AppTheme.primary, size: 20),
+                  child: const Icon(Icons.local_fire_department_rounded, color: AppTheme.caloriesColor, size: 22),
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
@@ -128,15 +126,15 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'AI Extracted Nutrition',
+                        'Xác nhận Tổng Calo Sản Phẩm',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
                       Text(
-                        'Verify values before saving to your daily log',
+                        'Kiểm tra lại số liệu trước khi lưu vào nhật ký',
                         style: TextStyle(fontSize: 12, color: Colors.white54),
                       ),
                     ],
@@ -144,11 +142,12 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                 ),
               ],
             ),
+
             if (widget.extractionResult.calculationNotes != null &&
                 widget.extractionResult.calculationNotes!.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppTheme.primary.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -172,105 +171,51 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            // Bảng tóm tắt thông tin bóc tách
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.cardColor.withOpacity(0.35),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'BẢNG BÓC TÁCH GỐC (EXTRACTED)',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.white70),
-                      ),
-                      Text(
-                        'Khẩu phần: ${widget.extractionResult.servingSize}',
-                        style: const TextStyle(fontSize: 11, color: AppTheme.caloriesColor, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white10, height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _CompactMacroBadge(label: 'Năng lượng', value: '${widget.extractionResult.calories} kcal', color: AppTheme.caloriesColor),
-                      _CompactMacroBadge(label: 'Đạm (P)', value: '${widget.extractionResult.protein.toStringAsFixed(1)}g', color: AppTheme.proteinColor),
-                      _CompactMacroBadge(label: 'Carb (C)', value: '${widget.extractionResult.carbs.toStringAsFixed(1)}g', color: AppTheme.carbsColor),
-                      _CompactMacroBadge(label: 'Béo (F)', value: '${widget.extractionResult.fat.toStringAsFixed(1)}g', color: AppTheme.fatColor),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: 18),
+
+            // Tên sản phẩm
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
-                labelText: 'Food / Meal Name',
+                labelText: 'Tên món ăn / sản phẩm',
                 prefixIcon: Icon(Icons.fastfood_outlined, color: Colors.white54),
               ),
             ),
+
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _caloriesController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Calories (kcal)',
-                      prefixIcon: Icon(Icons.local_fire_department, color: AppTheme.caloriesColor),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _proteinController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Protein (g)',
-                      prefixIcon: Icon(Icons.fitness_center, color: AppTheme.proteinColor),
-                    ),
-                  ),
-                ),
-              ],
+
+            // Tổng Calo (kcal)
+            TextField(
+              controller: _caloriesController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.caloriesColor),
+              decoration: const InputDecoration(
+                labelText: 'Tổng Calo của cả sản phẩm (kcal)',
+                prefixIcon: Icon(Icons.local_fire_department, color: AppTheme.caloriesColor),
+              ),
             ),
+
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _carbsController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Carbs (g)',
-                      prefixIcon: Icon(Icons.grain, color: AppTheme.carbsColor),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _fatController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Fat (g)',
-                      prefixIcon: Icon(Icons.opacity, color: AppTheme.fatColor),
-                    ),
-                  ),
-                ),
-              ],
+
+            // Khối lượng / Thể tích
+            TextField(
+              controller: _quantityController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Tổng khối lượng / thể tích (${widget.extractionResult.unit})',
+                prefixIcon: const Icon(Icons.scale_rounded, color: Colors.white54),
+                helperText: widget.extractionResult.hasTotalQuantity
+                    ? 'Đã tự động trích xuất từ nhãn'
+                    : 'Nhập để điều chỉnh nếu nhãn không có',
+              ),
             ),
-            const SizedBox(height: 14),
+
+            const SizedBox(height: 12),
+
+            // Toggle Raw OCR Text
             InkWell(
+              borderRadius: BorderRadius.circular(8),
               onTap: () => setState(() => _showRawOcr = !_showRawOcr),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
@@ -283,13 +228,14 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      _showRawOcr ? 'Hide Raw OCR Text' : 'View Raw OCR Text',
+                      _showRawOcr ? 'Ẩn văn bản OCR gốc' : 'Xem văn bản OCR gốc từ ảnh',
                       style: const TextStyle(fontSize: 12, color: Colors.white60),
                     ),
                   ],
                 ),
               ),
             ),
+
             if (_showRawOcr)
               Container(
                 margin: const EdgeInsets.only(top: 8, bottom: 8),
@@ -301,7 +247,7 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                 child: Text(
                   widget.extractionResult.rawOcrInput.isNotEmpty
                       ? widget.extractionResult.rawOcrInput
-                      : '(No raw OCR text)',
+                      : '(Không có văn bản OCR)',
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
@@ -311,7 +257,9 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+
             const SizedBox(height: 20),
+
             Row(
               children: [
                 Expanded(
@@ -322,14 +270,20 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
                       side: BorderSide(color: Colors.white.withOpacity(0.2)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                    child: const Text('Hủy bỏ', style: TextStyle(color: Colors.white70)),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _onConfirm,
-                    child: const Text('Save Entry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Lưu vào nhật ký', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -340,40 +294,3 @@ class _ConfirmationDialogState extends State<ConfirmationDialog> {
     );
   }
 }
-
-class _CompactMacroBadge extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _CompactMacroBadge({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            color: Colors.white54,
-          ),
-        ),
-      ],
-    );
-  }
-}
-

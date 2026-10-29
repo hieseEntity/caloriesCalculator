@@ -17,7 +17,7 @@ void main() {
     final nutrition = RegexNutritionParser.parse(ocrResult.rawText);
 
     expect(nutrition.calories, equals(80), reason: 'Must detect 80 calories from test image');
-    expect(nutrition.carbs, equals(19.0), reason: 'Must detect 19g carbs (from Sugars) from test image');
     expect(nutrition.servingSize, contains('1 Can'));
+    expect(nutrition.hasTotalQuantity, isTrue, reason: '1 Can is a complete single product container');
   });
 }

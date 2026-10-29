@@ -3,18 +3,19 @@ import '../../core/theme/app_theme.dart';
 import '../../features/ai_nutrition/nutrition_extractor.dart';
 
 /// ============================================================
-/// Bảng Hiển Thị Thông Tin Dinh Dưỡng Bóc Tách (Nutrition Table)
+/// Bảng Hiển Thị & Tính Toán TỔNG CALO Sản Phẩm (Total Calorie Panel)
 /// ============================================================
 ///
-/// Trực quan hóa toàn bộ dữ liệu dinh dưỡng được trích xuất từ OCR & LLM:
-///   - Tên món ăn & khẩu phần
-///   - Tổng lượng Calo & tỷ lệ phân bổ Macro (Protein, Carbs, Fat)
-///   - Bảng chi tiết từng chất dinh dưỡng (Khối lượng, Calo tương ứng, Tỷ lệ %)
-///   - Ghi chú tính toán (Công thức Atwater / Tổng hợp nhiều món)
-///   - Đối chiếu văn bản gốc OCR (Raw OCR Text)
+/// Tính năng:
+///   - Chỉ tập trung vào CALO (loại bỏ protein, carbs, fat theo yêu cầu).
+///   - Tự động nhận diện tổng khối lượng/thể tích từ ảnh nếu có.
+///   - Nếu chưa nhận diện được tổng khối lượng/thể tích -> Hiện thông báo
+///     yêu cầu người dùng nhập vào ô bên dưới.
+///   - Cho phép người dùng nhập/chỉnh sửa tổng khối lượng/thể tích để AI
+///     tính toán lại tổng calo của cả sản phẩm trong thời gian thực (realtime).
 class ExtractedNutritionTable extends StatefulWidget {
   final NutritionExtractionResult extractionResult;
-  final VoidCallback? onConfirm;
+  final Function(NutritionExtractionResult updatedResult)? onConfirm;
   final VoidCallback? onEdit;
   final int? targetCalories;
 
@@ -31,31 +32,71 @@ class ExtractedNutritionTable extends StatefulWidget {
 }
 
 class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
+  late NutritionExtractionResult _currentResult;
+  late TextEditingController _quantityController;
+  late String _selectedUnit;
   bool _isRawOcrExpanded = false;
 
   @override
+  void initState() {
+    super.initState();
+    _currentResult = widget.extractionResult;
+    _selectedUnit = _currentResult.unit.isNotEmpty ? _currentResult.unit : 'g';
+
+    final initialQty = _currentResult.totalProductQuantity;
+    _quantityController = TextEditingController(
+      text: initialQty != null && initialQty > 0 ? (initialQty % 1 == 0 ? initialQty.toInt().toString() : initialQty.toString()) : '',
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ExtractedNutritionTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.extractionResult != widget.extractionResult) {
+      _currentResult = widget.extractionResult;
+      _selectedUnit = _currentResult.unit.isNotEmpty ? _currentResult.unit : 'g';
+      final initialQty = _currentResult.totalProductQuantity;
+      _quantityController.text = initialQty != null && initialQty > 0
+          ? (initialQty % 1 == 0 ? initialQty.toInt().toString() : initialQty.toString())
+          : '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  void _onQuantityChanged(String value) {
+    final parsed = double.tryParse(value.replaceAll(',', '.'));
+    if (parsed != null && parsed > 0) {
+      setState(() {
+        _currentResult = _currentResult.copyWithTotalQuantity(parsed, newUnit: _selectedUnit);
+      });
+    } else if (value.trim().isEmpty) {
+      setState(() {
+        _currentResult = widget.extractionResult;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final result = widget.extractionResult;
-
-    // Tính toán năng lượng từ từng macro theo công thức Atwater chuẩn:
-    // Protein: 4 kcal/g, Carbs: 4 kcal/g, Fat: 9 kcal/g
-    final proteinKcal = result.protein * 4;
-    final carbsKcal = result.carbs * 4;
-    final fatKcal = result.fat * 9;
-    final totalMacroKcal = proteinKcal + carbsKcal + fatKcal;
-
-    final proteinPct = totalMacroKcal > 0 ? (proteinKcal / totalMacroKcal * 100).round() : 0;
-    final carbsPct = totalMacroKcal > 0 ? (carbsKcal / totalMacroKcal * 100).round() : 0;
-    final fatPct = totalMacroKcal > 0 ? (fatKcal / totalMacroKcal * 100).round() : 0;
+    final result = _currentResult;
+    final hasTotal = result.hasTotalQuantity && result.totalProductQuantity != null && result.totalProductQuantity! > 0;
 
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.caloriesColor.withOpacity(0.35), width: 1.5),
+        border: Border.all(
+          color: hasTotal ? AppTheme.caloriesColor.withOpacity(0.4) : Colors.amber.withOpacity(0.5),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -64,7 +105,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. TIÊU ĐỀ BẢNG (TABLE HEADER)
+          // 1. TIÊU ĐỀ
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
@@ -76,10 +117,10 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.15),
+                    color: AppTheme.caloriesColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.table_chart_rounded, color: AppTheme.primary, size: 20),
+                  child: const Icon(Icons.local_fire_department_rounded, color: AppTheme.caloriesColor, size: 22),
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
@@ -87,7 +128,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'THÔNG TIN DINH DƯỠNG BÓC TÁCH',
+                        'TỔNG CALO CỦA SẢN PHẨM',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -96,7 +137,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                         ),
                       ),
                       Text(
-                        'Extracted Nutrition Facts Table',
+                        'AI Total Calories Calculation',
                         style: TextStyle(fontSize: 11, color: Colors.white54),
                       ),
                     ],
@@ -105,16 +146,16 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppTheme.secondary.withOpacity(0.2),
+                    color: AppTheme.primary.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.secondary.withOpacity(0.4)),
+                    border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
                   ),
                   child: Text(
                     result.modelUsed,
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.proteinColor,
+                      color: AppTheme.primary,
                     ),
                   ),
                 ),
@@ -127,7 +168,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 2. TÊN MÓN ĂN & KHẨU PHẦN
+                // 2. TÊN SẢN PHẨM & KHẨU PHẦN CƠ SỞ
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -144,52 +185,64 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(Icons.scale_rounded, size: 14, color: Colors.white60),
-                              const SizedBox(width: 5),
-                              Text(
-                                'Khẩu phần: ${result.servingSize}',
-                                style: const TextStyle(fontSize: 12, color: Colors.white70),
-                              ),
-                            ],
+                          Text(
+                            'Khẩu phần chuẩn trên nhãn: ${result.servingSize}',
+                            style: const TextStyle(fontSize: 12, color: Colors.white70),
                           ),
+                          if (result.caloriesPerServing > 0)
+                            Text(
+                              'Calo cơ sở: ${result.caloriesPerServing} kcal / ${result.servingSize}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.caloriesColor.withOpacity(0.85),
+                              ),
+                            ),
                         ],
                       ),
                     ),
-                    // Hộp Calo nổi bật
+
+                    // HỘP HIỂN THỊ TỔNG CALO NỔI BẬT
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppTheme.primary.withOpacity(0.2),
-                            AppTheme.caloriesColor.withOpacity(0.1),
+                            AppTheme.primary.withOpacity(0.25),
+                            AppTheme.caloriesColor.withOpacity(0.15),
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppTheme.primary.withOpacity(0.5)),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.primary, width: 1.5),
                       ),
                       child: Column(
                         children: [
                           Text(
                             '${result.calories}',
                             style: const TextStyle(
-                              fontSize: 26,
+                              fontSize: 32,
                               fontWeight: FontWeight.w900,
                               color: AppTheme.caloriesColor,
                               height: 1.0,
                             ),
                           ),
+                          const SizedBox(height: 3),
                           const Text(
-                            'KCAL / CALO',
+                            'TỔNG CALO',
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.5,
-                              color: Colors.white70,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const Text(
+                            '(KCAL)',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.white60,
                             ),
                           ),
                         ],
@@ -198,105 +251,65 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                   ],
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
 
-                // 3. BẢNG CHI TIẾT CÁC THÀNH PHẦN (STRUCTURED DATA TABLE)
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.background.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(2.6), // Thành phần
-                        1: FlexColumnWidth(1.8), // Khối lượng
-                        2: FlexColumnWidth(1.8), // Năng lượng
-                        3: FlexColumnWidth(1.3), // Tỷ lệ
-                      },
-                      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                // 3. THÔNG BÁO TRẠNG THÁI NHẬN DIỆN KHỐI LƯỢNG / THỂ TÍCH
+                if (hasTotal) ...[
+                  // ĐÃ nhận diện được tổng khối lượng từ ảnh
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.primary.withOpacity(0.35)),
+                    ),
+                    child: Row(
                       children: [
-                        // Hàng tiêu đề bảng
-                        TableRow(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
+                        const Icon(Icons.check_circle_rounded, color: AppTheme.primary, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Đã nhận diện tổng: ${result.totalProductQuantity! % 1 == 0 ? result.totalProductQuantity!.toInt() : result.totalProductQuantity} $selectedUnitDisplay',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          children: const [
-                            _HeaderCell('Thành phần'),
-                            _HeaderCell('Khối lượng'),
-                            _HeaderCell('Năng lượng'),
-                            _HeaderCell('Tỷ lệ'),
-                          ],
-                        ),
-
-                        // Hàng 1: Chất đạm (Protein)
-                        _buildMacroRow(
-                          name: 'Chất đạm (Protein)',
-                          amount: '${result.protein.toStringAsFixed(1)} g',
-                          energy: '${proteinKcal.round()} kcal',
-                          percentage: '$proteinPct%',
-                          color: AppTheme.proteinColor,
-                          icon: Icons.fitness_center_rounded,
-                        ),
-
-                        // Hàng 2: Tinh bột (Carbohydrates)
-                        _buildMacroRow(
-                          name: 'Tinh bột (Carbs)',
-                          amount: '${result.carbs.toStringAsFixed(1)} g',
-                          energy: '${carbsKcal.round()} kcal',
-                          percentage: '$carbsPct%',
-                          color: AppTheme.carbsColor,
-                          icon: Icons.grain_rounded,
-                        ),
-
-                        // Hàng 3: Chất béo (Total Fat)
-                        _buildMacroRow(
-                          name: 'Chất béo (Fat)',
-                          amount: '${result.fat.toStringAsFixed(1)} g',
-                          energy: '${fatKcal.round()} kcal',
-                          percentage: '$fatPct%',
-                          color: AppTheme.fatColor,
-                          icon: Icons.opacity_rounded,
-                          isLast: true,
                         ),
                       ],
                     ),
                   ),
-                ),
-
-                // 4. GHI CHÚ TÍNH TOÁN / CÔNG THỨC ATWATER
-                if (result.calculationNotes != null && result.calculationNotes!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                ] else ...[
+                  // CHƯA nhận diện được tổng khối lượng từ ảnh -> THÔNG BÁO YÊU CẦU NGƯỜI DÙNG NHẬP
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.secondary.withOpacity(0.1),
+                      color: Colors.amber.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.secondary.withOpacity(0.25)),
+                      border: Border.all(color: Colors.amber.withOpacity(0.6)),
                     ),
-                    child: Row(
+                    child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.calculate_outlined, color: AppTheme.secondary, size: 18),
-                        const SizedBox(width: 10),
+                        Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+                        SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Công thức & Chi tiết tính toán:',
+                              Text(
+                                'Chưa nhận diện được tổng khối lượng / thể tích',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: AppTheme.proteinColor,
+                                  color: Colors.amber,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              SizedBox(height: 3),
                               Text(
-                                result.calculationNotes!,
-                                style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                                'Vui lòng nhập tổng khối lượng hoặc thể tích của sản phẩm vào ô dưới để AI tính tổng lượng calo chính xác!',
+                                style: TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
                               ),
                             ],
                           ),
@@ -306,9 +319,134 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                   ),
                 ],
 
-                // 5. KHU VỰC XEM RAW OCR TEXT (EXPANDABLE)
-                if (result.rawOcrInput.trim().isNotEmpty) ...[
+                const SizedBox(height: 14),
+
+                // 4. Ô NHẬP TỔNG KHỐI LƯỢNG / THỂ TÍCH ĐỂ GIÚP AI TÍNH TOÁN
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.background.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tổng khối lượng / thể tích của cả sản phẩm:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _quantityController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: 'Nhập số (vd: 250, 330, 500)',
+                                hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 13),
+                                prefixIcon: const Icon(Icons.scale_rounded, color: AppTheme.caloriesColor, size: 18),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                fillColor: AppTheme.surface,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                                ),
+                              ),
+                              onChanged: _onQuantityChanged,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // Dropdown chọn đơn vị (g, ml, khẩu phần, lon, gói)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white.withOpacity(0.15)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: ['g', 'ml', 'khẩu phần', 'lon', 'gói', 'hộp'].contains(_selectedUnit)
+                                    ? _selectedUnit
+                                    : 'g',
+                                dropdownColor: AppTheme.surface,
+                                style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                                items: const [
+                                  DropdownMenuItem(value: 'g', child: Text('Gam (g)')),
+                                  DropdownMenuItem(value: 'ml', child: Text('Mililit (ml)')),
+                                  DropdownMenuItem(value: 'khẩu phần', child: Text('Khẩu phần')),
+                                  DropdownMenuItem(value: 'lon', child: Text('Lon')),
+                                  DropdownMenuItem(value: 'gói', child: Text('Gói')),
+                                  DropdownMenuItem(value: 'hộp', child: Text('Hộp')),
+                                ],
+                                onChanged: (newUnit) {
+                                  if (newUnit != null) {
+                                    setState(() {
+                                      _selectedUnit = newUnit;
+                                      _onQuantityChanged(_quantityController.text);
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 5. GHI CHÚ CÔNG THỨC TÍNH TOÁN
+                if (result.calculationNotes != null && result.calculationNotes!.isNotEmpty) ...[
                   const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardColor.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.calculate_rounded, color: AppTheme.caloriesColor, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Chi tiết phép tính:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.caloriesColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                result.calculationNotes!,
+                                style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.35),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // 6. XEM RAW OCR TEXT (EXPANDABLE)
+                if (result.rawOcrInput.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
                   InkWell(
                     borderRadius: BorderRadius.circular(10),
                     onTap: () => setState(() => _isRawOcrExpanded = !_isRawOcrExpanded),
@@ -323,8 +461,8 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                           ),
                           const SizedBox(width: 4),
                           const Text(
-                            'Xem văn bản gốc OCR nhận diện được',
-                            style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w500),
+                            'Xem văn bản gốc OCR nhận diện được từ bao bì',
+                            style: TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),
@@ -352,7 +490,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                   ],
                 ],
 
-                // 6. NÚT XÁC NHẬN / CHỈNH SỬA
+                // 7. CÁC NÚT THAO TÁC (LƯU VÀO NHẬT KÝ)
                 if (widget.onConfirm != null || widget.onEdit != null) ...[
                   const SizedBox(height: 16),
                   Row(
@@ -386,11 +524,11 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                               elevation: 2,
                             ),
                             icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                            label: const Text(
-                              'Lưu vào nhật ký',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                            label: Text(
+                              'Lưu ${result.calories} kcal vào nhật ký',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            onPressed: widget.onConfirm,
+                            onPressed: () => widget.onConfirm!(_currentResult),
                           ),
                         ),
                     ],
@@ -404,82 +542,14 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
     );
   }
 
-  static TableRow _buildMacroRow({
-    required String name,
-    required String amount,
-    required String energy,
-    required String percentage,
-    required Color color,
-    required IconData icon,
-    bool isLast = false,
-  }) {
-    return TableRow(
-      decoration: BoxDecoration(
-        border: isLast ? null : Border(bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
-      ),
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Text(
-            amount,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Text(
-            energy,
-            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Text(
-            percentage,
-            style: const TextStyle(fontSize: 11, color: Colors.white70),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeaderCell extends StatelessWidget {
-  final String label;
-  const _HeaderCell(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.white70,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
+  String get selectedUnitDisplay {
+    switch (_selectedUnit) {
+      case 'g':
+        return 'gam (g)';
+      case 'ml':
+        return 'ml';
+      default:
+        return _selectedUnit;
+    }
   }
 }

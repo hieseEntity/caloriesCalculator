@@ -98,9 +98,10 @@ class QwenNutritionExtractor implements AiNutritionExtractor {
         'food_name': fallbackResult.foodName,
         'serving_size': fallbackResult.servingSize,
         'calories': fallbackResult.calories,
-        'protein': fallbackResult.protein,
-        'carbs': fallbackResult.carbs,
-        'fat': fallbackResult.fat,
+        'calories_per_serving': fallbackResult.caloriesPerServing,
+        'total_product_quantity': fallbackResult.totalProductQuantity,
+        'unit': fallbackResult.unit,
+        'has_total_quantity': fallbackResult.hasTotalQuantity,
         'calculation_notes': fallbackResult.calculationNotes,
       };
       generatedJson = jsonEncode(extractedMap);
@@ -118,19 +119,22 @@ class QwenNutritionExtractor implements AiNutritionExtractor {
       final foodName = decoded['food_name'] as String? ?? fallbackResult.foodName;
       final servingSize = decoded['serving_size'] as String? ?? fallbackResult.servingSize;
       final calories = (decoded['calories'] as num?)?.toInt() ?? fallbackResult.calories;
-      final protein = (decoded['protein'] as num?)?.toDouble() ?? fallbackResult.protein;
-      final carbs = (decoded['carbs'] as num?)?.toDouble() ?? fallbackResult.carbs;
-      final fat = (decoded['fat'] as num?)?.toDouble() ?? fallbackResult.fat;
+      final caloriesPerServing = (decoded['calories_per_serving'] as num?)?.toInt() ?? fallbackResult.caloriesPerServing;
+      final totalProductQuantity = (decoded['total_product_quantity'] as num?)?.toDouble() ?? fallbackResult.totalProductQuantity;
+      final unit = decoded['unit'] as String? ?? fallbackResult.unit;
+      final hasTotalQuantity = decoded['has_total_quantity'] as bool? ?? fallbackResult.hasTotalQuantity;
       final calculationNotes = decoded['calculation_notes'] as String? ?? fallbackResult.calculationNotes;
 
       return NutritionExtractionResult(
         foodName: foodName,
         servingSize: servingSize,
         calories: calories,
-        protein: protein,
-        carbs: carbs,
-        fat: fat,
-        confidence: 0.96,
+        caloriesPerServing: caloriesPerServing,
+        servingQuantity: fallbackResult.servingQuantity,
+        totalProductQuantity: totalProductQuantity,
+        unit: unit,
+        hasTotalQuantity: hasTotalQuantity,
+        confidence: fallbackResult.confidence,
         modelUsed: modelName,
         rawJson: generatedJson,
         rawOcrInput: rawOcrText,

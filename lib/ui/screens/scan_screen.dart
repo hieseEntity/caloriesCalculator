@@ -292,18 +292,18 @@ class _ScanScreenState extends State<ScanScreen> {
                     await _saveEntry(entry);
                   }
                 },
-                onConfirm: () async {
+                onConfirm: (updatedResult) async {
                   final entry = FoodEntry(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: _extractionResult!.foodName,
-                    calories: _extractionResult!.calories,
-                    protein: _extractionResult!.protein,
-                    carbs: _extractionResult!.carbs,
-                    fat: _extractionResult!.fat,
+                    name: updatedResult.foodName,
+                    calories: updatedResult.calories,
+                    protein: updatedResult.protein,
+                    carbs: updatedResult.carbs,
+                    fat: updatedResult.fat,
                     timestamp: DateTime.now(),
                     dateString: widget.trackerController.currentDate,
                     imagePath: _selectedImagePath,
-                    rawOcrText: _extractionResult!.rawOcrInput,
+                    rawOcrText: updatedResult.rawOcrInput,
                   );
                   await _saveEntry(entry);
                 },
