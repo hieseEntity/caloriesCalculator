@@ -4,16 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
 import 'ocr_service.dart';
 
 /// ============================================================
-/// Tesseract OCR Engine — Nhận diện chữ trên Linux & Android
+/// Tesseract OCR Engine — Nhận diện chữ trên Linux & Desktop
 /// ============================================================
 ///
 /// Hỗ trợ:
 ///   - Linux: Chạy trực tiếp qua native `tesseract` binary
-///   - Android: Chạy qua `flutter_tesseract_ocr` plugin
 ///   - Preprocessing: Tự động đảo màu (invert) nếu nền tối (chữ trắng trên bao bì đen),
 ///     nâng độ tương phản và scale ảnh để tối ưu hóa nhận diện.
 /// ============================================================
@@ -227,20 +225,6 @@ class TesseractOcrEngine implements OcrEngine {
         if (res.exitCode == 0) {
           text = res.stdout.toString().trim();
         }
-      } catch (_) {}
-    }
-
-    // Trên Android hoặc fallback: Dùng Flutter plugin
-    if (text.isEmpty) {
-      try {
-        text = await FlutterTesseractOcr.extractText(
-          path,
-          language: language,
-          args: {
-            'psm': psm,
-            'preserve_interword_spaces': '1',
-          },
-        );
       } catch (_) {}
     }
 

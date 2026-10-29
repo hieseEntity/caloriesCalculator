@@ -28,8 +28,8 @@ class OcrEngineFactory {
     }
 
     if (Platform.isAndroid) {
-      // Trên Android: Dùng engine thông minh (ML Kit làm chính, Tesseract làm fallback)
-      return _AndroidSmartOcrEngine();
+      // Trên Android: Dùng Google ML Kit Text Recognition on-device (nhanh, chuẩn, offline)
+      return GoogleMlKitOcrEngine();
     }
 
     if (Platform.isLinux) {
@@ -46,36 +46,10 @@ class OcrEngineFactory {
 
   static String get platformEngineName {
     if (kIsWeb) return 'Google ML Kit (Web)';
-    if (Platform.isAndroid) return 'Google ML Kit / Tesseract (Android)';
+    if (Platform.isAndroid) return 'Google ML Kit (Android)';
     if (Platform.isLinux) return 'Tesseract OCR (Linux)';
     if (Platform.isIOS) return 'Google ML Kit (iOS)';
     if (Platform.isMacOS) return 'Google ML Kit (macOS)';
     return 'Google ML Kit';
-  }
-}
-
-/// Engine thông minh cho Android:
-/// 1. Ưu tiên chạy Google ML Kit on-device (nhanh, chuẩn).
-/// 2. Nếu ML Kit trả về rỗng hoặc lỗi (ví dụ chưa kịp tải model Play Services),
-///    tự động fallback sang Tesseract OCR on-device.
-class _AndroidSmartOcrEngine implements OcrEngine {
-  final GoogleMlKitOcrEngine _mlKit = GoogleMlKitOcrEngine();
-  final TesseractOcrEngine _tesseract = TesseractOcrEngine();
-
-  @override
-  Future<OcrResult> processImage(String imagePath) async {
-    try {
-      final mlKitResult = await _mlKit.processImage(imagePath);
-      if (!mlKitResult.isEmpty) {
-        return mlKitResult;
-      }
-      // ignore: avoid_print
-      print('[AndroidSmartOCR] ML Kit không nhận diện được chữ → Fallback sang Tesseract');
-    } catch (e) {
-      // ignore: avoid_print
-      print('[AndroidSmartOCR] ML Kit lỗi ($e) → Fallback sang Tesseract');
-    }
-
-    return await _tesseract.processImage(imagePath);
   }
 }
