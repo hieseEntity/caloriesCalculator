@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
 import 'ocr_service.dart';
@@ -11,14 +12,10 @@ import 'ocr_service.dart';
 /// ============================================================
 ///
 /// Hỗ trợ:
-///   - Linux: Chạy trực tiếp qua native `tesseract` binary (cực nhanh và ổn định)
-///   - Android: Chạy qua `flutter_tesseract_ocr` plugin (TessBaseAPI native)
-///   - Mock/Presets: Tự động phát hiện ảnh demo và trả về kết quả tương ứng
-///
-/// Pipeline:
-///   1. Tải tessdata_config.json để biết danh sách model cần dùng (vie + eng)
-///   2. Đảm bảo file traineddata đã sẵn sàng (assets hoặc Documents folder)
-///   3. Thực thi OCR và phân tách thành OcrTextBlock[]
+///   - Linux: Chạy trực tiếp qua native `tesseract` binary
+///   - Android: Chạy qua `flutter_tesseract_ocr` plugin
+///   - Preprocessing: Tự động đảo màu (invert) nếu nền tối (chữ trắng trên bao bì đen),
+///     nâng độ tương phản và scale ảnh để tối ưu hóa nhận diện.
 /// ============================================================
 class TesseractOcrEngine implements OcrEngine {
   static const String _engineName = 'Tesseract OCR (vie+eng)';
@@ -28,9 +25,6 @@ class TesseractOcrEngine implements OcrEngine {
   bool _isInitialized = false;
   Map<String, dynamic>? _config;
 
-  // ------------------------------------------------------------------
-  // Tải cấu hình từ assets/tessdata_config.json
-  // ------------------------------------------------------------------
   Future<Map<String, dynamic>?> _loadConfig() async {
     final candidatePaths = [
       'assets/tessdata_config.json',
@@ -39,8 +33,7 @@ class TesseractOcrEngine implements OcrEngine {
     for (final path in candidatePaths) {
       try {
         final jsonStr = await rootBundle.loadString(path);
-        final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
-        return decoded;
+        return jsonDecode(jsonStr) as Map<String, dynamic>;
       } catch (_) {}
     }
     return null;
@@ -55,9 +48,6 @@ class TesseractOcrEngine implements OcrEngine {
     }
   }
 
-  // ------------------------------------------------------------------
-  // Khởi tạo thư mục tessdata và copy traineddata nếu cần
-  // ------------------------------------------------------------------
   Future<void> _ensureInitialized() async {
     if (_isInitialized) return;
 
@@ -70,7 +60,6 @@ class TesseractOcrEngine implements OcrEngine {
         await tessDir.create(recursive: true);
       }
 
-      // Copy các file traineddata từ assets sang documents nếu chưa có
       final targetFiles = ['vie.traineddata', 'eng.traineddata'];
       for (final fileName in targetFiles) {
         final destFile = File('${tessDir.path}/$fileName');
@@ -87,7 +76,6 @@ class TesseractOcrEngine implements OcrEngine {
 
       _tessdataPath = tessDir.path;
     } catch (_) {
-      // Fallback nếu path_provider không gọi được (ví dụ trong headless test)
       final localAssetsDir = Directory('assets/tessdata');
       if (await localAssetsDir.exists()) {
         _tessdataPath = localAssetsDir.absolute.path;
@@ -97,9 +85,6 @@ class TesseractOcrEngine implements OcrEngine {
     _isInitialized = true;
   }
 
-  // ------------------------------------------------------------------
-  // Nhận diện văn bản từ ảnh
-  // ------------------------------------------------------------------
   @override
   Future<OcrResult> processImage(String imagePath) async {
     final stopwatch = Stopwatch()..start();
@@ -115,7 +100,7 @@ class TesseractOcrEngine implements OcrEngine {
       );
     }
 
-    // 1. Kiểm tra nếu là file demo/mock (kích thước quá nhỏ hoặc text placeholder)
+    // 1. Nếu là file demo preset giả lập (dung lượng nhỏ hơn 256 bytes)
     final fileLength = await imageFile.length();
     if (fileLength < 256) {
       final mockText = _generateContextualMock(imagePath);
@@ -130,48 +115,29 @@ class TesseractOcrEngine implements OcrEngine {
 
     await _ensureInitialized();
     final language = _getLanguages();
-    String rawExtracted = '';
+    final effectiveTessdata = _tessdataPath ?? 'assets/tessdata';
 
-    // 2. Nếu chạy trên Linux desktop: Ưu tiên dùng CLI tesseract trực tiếp
-    if (!kIsWeb && Platform.isLinux) {
-      try {
-        final effectiveTessdata = _tessdataPath ?? 'assets/tessdata';
-        final processResult = await Process.run('tesseract', [
-          imagePath,
-          'stdout',
-          '-l',
-          language,
-          '--tessdata-dir',
-          effectiveTessdata,
-          '--psm',
-          '3',
-          '-c',
-          'preserve_interword_spaces=1',
-        ]);
+    // 2. Thử OCR trên ảnh gốc
+    String rawExtracted = await _runTesseract(imagePath, language, effectiveTessdata, psm: '3');
 
-        if (processResult.exitCode == 0) {
-          rawExtracted = processResult.stdout.toString().trim();
-        }
-      } catch (e) {
-        // ignore: avoid_print
-        print('[TesseractOCR Linux CLI Error] $e');
-      }
-    }
+    // 3. Nếu ảnh gốc ra ít chữ hoặc không nhận diện được dinh dưỡng (ví dụ: nền đen chữ trắng)
+    // Tự động tiền xử lý ảnh: grayscale + đảo màu (invert) + tăng tương phản + upscale
+    if (rawExtracted.trim().length < 35 || !_hasNutritionKeywords(rawExtracted)) {
+      final preprocessedPath = await _preprocessImage(imagePath);
+      if (preprocessedPath != null) {
+        // Thử với PSM 11 (Sparse text) và PSM 6 (Uniform block of text)
+        final psm11Result = await _runTesseract(preprocessedPath, language, effectiveTessdata, psm: '11');
+        final psm6Result = await _runTesseract(preprocessedPath, language, effectiveTessdata, psm: '6');
 
-    // 3. Nếu CLI không ra kết quả hoặc chạy trên Android/iOS: Dùng plugin channel
-    if (rawExtracted.isEmpty) {
-      try {
-        rawExtracted = await FlutterTesseractOcr.extractText(
-          imagePath,
-          language: language,
-          args: {
-            'psm': '3',
-            'preserve_interword_spaces': '1',
-          },
-        );
-      } catch (e) {
-        // ignore: avoid_print
-        print('[TesseractOCR Plugin Error] $e');
+        final candidates = [rawExtracted, psm11Result, psm6Result];
+        candidates.sort((a, b) => b.length.compareTo(a.length));
+        rawExtracted = candidates.first;
+
+        // Xóa file tạm sau khi OCR xong
+        try {
+          final tempFile = File(preprocessedPath);
+          if (await tempFile.exists()) await tempFile.delete();
+        } catch (_) {}
       }
     }
 
@@ -191,6 +157,108 @@ class TesseractOcrEngine implements OcrEngine {
       latencyMs: stopwatch.elapsedMilliseconds,
       engine: _engineName,
     );
+  }
+
+  /// Tiền xử lý ảnh thông minh: Tự động đảo màu nếu nền tối, scale x2 và tăng tương phản
+  Future<String?> _preprocessImage(String originalPath) async {
+    try {
+      final bytes = await File(originalPath).readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return null;
+
+      // 1. Chuyển sang ảnh thang độ xám (grayscale)
+      var processed = img.grayscale(decoded);
+
+      // 2. Kiểm tra nếu nền tối (chữ sáng trên nền tối)
+      int darkPixels = 0;
+      int sampled = 0;
+      for (int y = 0; y < processed.height; y += 8) {
+        for (int x = 0; x < processed.width; x += 8) {
+          final pixel = processed.getPixel(x, y);
+          if (pixel.r < 128) darkPixels++;
+          sampled++;
+        }
+      }
+      final isDark = (darkPixels / sampled) > 0.5;
+
+      // Đảo màu nếu nền tối (Tesseract nhận diện tốt nhất chữ đen trên nền trắng)
+      if (isDark) {
+        processed = img.invert(processed);
+      }
+
+      // 3. Phóng to 2x nếu ảnh nhỏ (tăng độ phân giải cho OCR)
+      if (processed.width < 900) {
+        processed = img.copyResize(processed, width: processed.width * 2);
+      }
+
+      // 4. Tăng độ tương phản
+      processed = img.adjustColor(processed, contrast: 1.6);
+
+      final tempDir = Directory.systemTemp;
+      final tempPath = '${tempDir.path}/ocr_prep_${DateTime.now().millisecondsSinceEpoch}.png';
+      await File(tempPath).writeAsBytes(img.encodePng(processed));
+      return tempPath;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[Tesseract Preprocessing Error] $e');
+      return null;
+    }
+  }
+
+  /// Chạy Tesseract trên một file cụ thể
+  Future<String> _runTesseract(String path, String language, String tessdataDir, {String psm = '3'}) async {
+    String text = '';
+
+    // Trên Linux: Ưu tiên gọi CLI tesseract trực tiếp
+    if (!kIsWeb && Platform.isLinux) {
+      try {
+        final res = await Process.run('tesseract', [
+          path,
+          'stdout',
+          '-l',
+          language,
+          '--tessdata-dir',
+          tessdataDir,
+          '--psm',
+          psm,
+          '-c',
+          'preserve_interword_spaces=1',
+        ]);
+        if (res.exitCode == 0) {
+          text = res.stdout.toString().trim();
+        }
+      } catch (_) {}
+    }
+
+    // Trên Android hoặc fallback: Dùng Flutter plugin
+    if (text.isEmpty) {
+      try {
+        text = await FlutterTesseractOcr.extractText(
+          path,
+          language: language,
+          args: {
+            'psm': psm,
+            'preserve_interword_spaces': '1',
+          },
+        );
+      } catch (_) {}
+    }
+
+    return text;
+  }
+
+  bool _hasNutritionKeywords(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('cal') ||
+        lower.contains('calo') ||
+        lower.contains('kcal') ||
+        lower.contains('fat') ||
+        lower.contains('protein') ||
+        lower.contains('carb') ||
+        lower.contains('nutrition') ||
+        lower.contains('năng lượng') ||
+        lower.contains('chất đạm') ||
+        lower.contains('chất béo');
   }
 
   List<OcrTextBlock> _toBlocks(String text) {

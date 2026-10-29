@@ -113,7 +113,7 @@ class RegexNutritionParser {
 
     // Carbohydrates / Tinh bột / Đường / Glucid / Carbs
     final carbsRegex = RegExp(
-      r'(?:total\s+carbohydrate|carbohydrates|carbs?|carbohydrat|tinh\s*bột|tinh\s*bot|đường|duong|glucid)[^\d\n]*?(\d+(?:[.,]\d+)?)\s*g?',
+      r'(?:total\s+carbohydrate|carbohydrates|carbs?|carbohydrat|tinh\s*bột|tinh\s*bot|glucid)[^\d\n]*?(\d+(?:[.,]\d+)?)\s*g?',
       caseSensitive: false,
     );
     final carbsMatches = carbsRegex.allMatches(rawOcrText).toList();
@@ -121,6 +121,19 @@ class RegexNutritionParser {
     for (final m in carbsMatches) {
       final rawNum = (m.group(1) ?? '0').replaceAll(',', '.');
       totalCarbs += double.tryParse(rawNum) ?? 0.0;
+    }
+
+    // Fallback: Nếu không thấy Total Carbohydrate nhưng có Sugars (Đường)
+    if (totalCarbs == 0.0) {
+      final sugarRegex = RegExp(
+        r'(?:sugars?|đường|duong)[^\d\n]*?(\d+(?:[.,]\d+)?)\s*g?',
+        caseSensitive: false,
+      );
+      final sugarMatch = sugarRegex.firstMatch(rawOcrText);
+      if (sugarMatch != null) {
+        final rawNum = (sugarMatch.group(1) ?? '0').replaceAll(',', '.');
+        totalCarbs = double.tryParse(rawNum) ?? 0.0;
+      }
     }
 
     // Total Fat / Chất béo / Béo / Lipid
