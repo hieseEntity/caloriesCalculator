@@ -10,25 +10,55 @@ import 'ui/screens/home_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Core Services
-  final prefsService = await PreferencesService.create();
-  final databaseHelper = DatabaseHelper.instance;
-  final rolloverService = RolloverService(prefsService);
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    debugPrint('[StackTrace] ${details.stack}');
+  };
 
-  // Initialize Controllers
-  final profileController = ProfileController(prefsService);
-  final trackerController = TrackerController(
-    databaseHelper: databaseHelper,
-    rolloverService: rolloverService,
-  );
+  try {
+    // Initialize Core Services
+    final prefsService = await PreferencesService.create();
+    final databaseHelper = DatabaseHelper.instance;
+    final rolloverService = RolloverService(prefsService);
 
-  // Load today's entries and rollover state
-  await trackerController.init(profileController.tdeeResult.targetCalories);
+    // Initialize Controllers
+    final profileController = ProfileController(prefsService);
+    final trackerController = TrackerController(
+      databaseHelper: databaseHelper,
+      rolloverService: rolloverService,
+    );
 
-  runApp(CaloriesCalculatorApp(
-    profileController: profileController,
-    trackerController: trackerController,
-  ));
+    // Load today's entries and rollover state
+    try {
+      await trackerController.init(profileController.tdeeResult.targetCalories);
+    } catch (e, stack) {
+      debugPrint('[TrackerInitError] $e\n$stack');
+    }
+
+    runApp(CaloriesCalculatorApp(
+      profileController: profileController,
+      trackerController: trackerController,
+    ));
+  } catch (e, stack) {
+    debugPrint('[MainFatalError] $e\n$stack');
+    runApp(MaterialApp(
+      home: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SingleChildScrollView(
+              child: Text(
+                'Lỗi khởi động ứng dụng:\n\n$e\n\nStack:\n$stack',
+                style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+  }
 }
 
 class CaloriesCalculatorApp extends StatelessWidget {
