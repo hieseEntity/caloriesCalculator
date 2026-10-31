@@ -87,6 +87,45 @@ class NutritionExtractionResult {
     );
   }
 
+  /// Tạo bản sao với các trường được chỉ định thay đổi
+  NutritionExtractionResult copyWith({
+    String? foodName,
+    String? servingSize,
+    int? calories,
+    int? caloriesPerServing,
+    double? servingQuantity,
+    double? totalProductQuantity,
+    String? unit,
+    bool? hasTotalQuantity,
+    double? protein,
+    double? carbs,
+    double? fat,
+    double? confidence,
+    String? modelUsed,
+    String? rawJson,
+    String? rawOcrInput,
+    String? calculationNotes,
+  }) {
+    return NutritionExtractionResult(
+      foodName: foodName ?? this.foodName,
+      servingSize: servingSize ?? this.servingSize,
+      calories: calories ?? this.calories,
+      caloriesPerServing: caloriesPerServing ?? this.caloriesPerServing,
+      servingQuantity: servingQuantity ?? this.servingQuantity,
+      totalProductQuantity: totalProductQuantity ?? this.totalProductQuantity,
+      unit: unit ?? this.unit,
+      hasTotalQuantity: hasTotalQuantity ?? this.hasTotalQuantity,
+      protein: protein ?? this.protein,
+      carbs: carbs ?? this.carbs,
+      fat: fat ?? this.fat,
+      confidence: confidence ?? this.confidence,
+      modelUsed: modelUsed ?? this.modelUsed,
+      rawJson: rawJson ?? this.rawJson,
+      rawOcrInput: rawOcrInput ?? this.rawOcrInput,
+      calculationNotes: calculationNotes ?? this.calculationNotes,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'food_name': foodName,

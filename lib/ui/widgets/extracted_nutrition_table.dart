@@ -132,7 +132,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                     ),
                     Text(
                       result.caloriesPerServing > 0
-                          ? 'Calo cơ sở: ${result.caloriesPerServing} kcal / ${result.servingSize}'
+                          ? 'Calo cơ sở: ${result.caloriesPerServing} kcal'
                           : 'Khẩu phần: ${result.servingSize}',
                       style: const TextStyle(fontSize: 12, color: Colors.white60),
                     ),
@@ -255,7 +255,7 @@ class _ExtractedNutritionTableState extends State<ExtractedNutritionTable> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Bao bì có: ${result.caloriesPerServing > 0 ? "${result.caloriesPerServing} kcal / ${result.servingSize}" : "chưa rõ tổng"}.\nNhập tổng lượng bên dưới để AI tính tổng calo bạn sẽ nạp:',
+                      'Bao bì có: ${result.caloriesPerServing > 0 ? "${result.caloriesPerServing} kcal" : "chưa rõ tổng"}.\nNhập tổng lượng bên dưới để AI tính tổng calo bạn sẽ nạp:',
                       style: const TextStyle(fontSize: 12, color: Colors.white, height: 1.35),
                     ),
                   ),

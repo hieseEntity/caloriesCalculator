@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/food_entry.dart';
 import '../../core/theme/app_theme.dart';
 // AiNutritionExtractor interface + NutritionExtractionResult model
@@ -64,6 +65,25 @@ class _ScanScreenState extends State<ScanScreen> {
     }
   }
 
+  /// Lấy thứ tự ảnh được chụp/chọn trong ngày, bắt đầu từ 1
+  Future<int> _getNextDailyMealNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = widget.trackerController.currentDate.isNotEmpty
+        ? widget.trackerController.currentDate
+        : DateTime.now().toIso8601String().substring(0, 10);
+    final key = 'daily_photo_scan_count_$today';
+    int current = prefs.getInt(key) ?? 0;
+
+    final savedToday = widget.trackerController.todayEntries.length;
+    if (current < savedToday) {
+      current = savedToday;
+    }
+
+    final next = current + 1;
+    await prefs.setInt(key, next);
+    return next;
+  }
+
   Future<void> _processImage(String path) async {
     setState(() {
       _selectedImagePath = path;
@@ -82,8 +102,12 @@ class _ScanScreenState extends State<ScanScreen> {
     // 2. Phase 3: Run Qwen2.5-0.5B Extractor & Calculation Engine
     final extraction = await _aiExtractor.extractNutrition(ocr.rawText);
 
+    // Đổi tên hiển thị thành "Meal thứ n" (thứ tự ảnh được chụp/chọn trong ngày, bắt đầu từ 1)
+    final mealNumber = await _getNextDailyMealNumber();
+    final mealResult = extraction.copyWith(foodName: 'Meal thứ $mealNumber');
+
     setState(() {
-      _extractionResult = extraction;
+      _extractionResult = mealResult;
       _isProcessing = false;
       _currentStep = 'Tính toán hoàn tất!';
     });
