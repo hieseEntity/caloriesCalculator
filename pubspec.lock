@@ -97,6 +97,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.3"
+  fast_paddle_ocr:
+    dependency: "direct main"
+    description:
+      name: fast_paddle_ocr
+      sha256: c7dad13e9d99c5eb03e9091ca0208f326fc03a2c8ff8db14a0fe313729fa08ea
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.5"
   ffi:
     dependency: transitive
     description:
@@ -184,22 +192,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  google_mlkit_commons:
-    dependency: transitive
-    description:
-      name: google_mlkit_commons
-      sha256: "621e94de22fd0f1e902e593b892746d80ab7542b39c2552aa091d904eb82fc6f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.13.0"
-  google_mlkit_text_recognition:
-    dependency: "direct main"
-    description:
-      name: google_mlkit_text_recognition
-      sha256: e13685af5093c8be009a3555909b72a80e10cfe8f97752bcbdf99fa0ccbda810
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.17.1"
   hooks:
     dependency: transitive
     description:
@@ -504,6 +496,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.5.4"
+  pp_ocr:
+    dependency: "direct main"
+    description:
+      name: pp_ocr
+      sha256: f96191a34b4feb951dd619dd5879fa69f30e48a616f3d70ab4658a286863adef
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.4"
   process:
     dependency: transitive
     description:

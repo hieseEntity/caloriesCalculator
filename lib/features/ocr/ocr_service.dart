@@ -10,9 +10,12 @@ library;
 ///
 /// Kiến trúc dạng Strategy Pattern:
 ///   OcrEngine (interface)
-///     ├── GoogleMlKitOcrEngine (Android/iOS)
-///     └── TesseractOcrEngine  (Linux)
+///     ├── PpOcrMobileEngine        (Android — PP-OCRv5, NCNN)
+///     └── PaddleOcrDesktopEngine   (Linux/Windows — PP-OCRv6, ONNX Runtime)
 ///   => Được chọn tự động bởi OcrEngineFactory
+///
+/// Tất cả engine sử dụng PaddleOCR — hỗ trợ đọc chữ trên mặt cong
+/// (nhãn dinh dưỡng trên lon, chai...) nhờ kiến trúc detection tiên tiến.
 
 /// Đại diện cho một đoạn text được nhận diện từ ảnh
 ///

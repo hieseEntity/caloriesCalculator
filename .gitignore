@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
 
 # Widget Preview related
 .widget_preview/
@@ -51,3 +52,7 @@ app.*.map.json
 *.gguf
 *.bin
 *.onnx
+
+# Allow PaddleOCR model binaries (< 15MB each, well within GitHub limit)
+!assets/paddle_models/*.bin
+!assets/paddle_models/*.onnx

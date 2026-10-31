@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.calories_calculator"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "29.0.14206865"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -18,13 +18,17 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.calories_calculator"
-        // BUG2 FIX: Google ML Kit Text Recognition yêu cầu minSdk >= 21.
-        // flutter.minSdkVersion mặc định có thể là 16 → ML Kit sẽ không hoạt động.
-        minSdk = flutter.minSdkVersion
+        // fast_paddle_ocr (NCNN) yêu cầu minSdk >= 24 (Android 7.0)
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+
+        // Chỉ giữ ARM architectures để giảm kích thước APK (NCNN models)
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {

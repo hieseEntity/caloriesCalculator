@@ -4,22 +4,22 @@
 -keep class io.flutter.plugin.** { *; }
 
 # Keep all plugin classes explicitly to prevent R8 from obfuscating them
--keep class com.google_mlkit_commons.** { *; }
--keep class com.google_mlkit_text_recognition.** { *; }
 -keep class com.tekartik.sqflite.** { *; }
 -keep class io.flutter.plugins.imagepicker.** { *; }
 -keep class io.flutter.plugins.sharedpreferences.** { *; }
 -keep class com.github.dart_lang.jni.** { *; }
 -keep class com.github.dart_lang.jni_flutter.** { *; }
 
-# Google ML Kit Vision & Common
--keep class com.google.mlkit.** { *; }
--keep class com.google.android.gms.** { *; }
--dontwarn com.google.mlkit.vision.text.chinese.**
--dontwarn com.google.mlkit.vision.text.devanagari.**
--dontwarn com.google.mlkit.vision.text.japanese.**
--dontwarn com.google.mlkit.vision.text.korean.**
--dontwarn com.google_mlkit_text_recognition.**
+# PaddleOCR Mobile (fast_paddle_ocr / PP-OCRv5 NCNN)
+-keep class com.iweka.ocr.** { *; }
+-keepclasseswithmembernames class com.iweka.ocr.** {
+    native <methods>;
+}
+
+# Keep all JNI native methods across the app
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
 
 # Google Play Core / Deferred Components suppressions
 -dontwarn com.google.android.play.core.**

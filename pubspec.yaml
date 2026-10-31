@@ -40,7 +40,10 @@ dependencies:
   sqflite: ^2.3.3+1
   sqflite_common_ffi: ^2.3.4+4
   path: ^1.9.0
-  google_mlkit_text_recognition: ^0.17.1
+  # PaddleOCR Desktop (Linux/Windows) — PP-OCRv6 + ONNX Runtime via dart:ffi
+  pp_ocr: ^0.5.4
+  # PaddleOCR Mobile (Android) — PP-OCRv5 + NCNN native C++
+  fast_paddle_ocr: ^0.0.5
   path_provider: ^2.1.5
   image: ^4.12.0
 
@@ -66,17 +69,12 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Khai báo thư mục assets chứa model AI và tessdata cho Tesseract OCR
+  # Khai báo thư mục assets chứa model AI và PaddleOCR models
   assets:
     # Thư mục model Qwen2.5-0.5B (GGUF file phải tải về riêng)
     - assets/models/
-    # Thư mục Tesseract traineddata + config
-    - assets/tessdata/
-    # Khai báo explicit để rootBundle.loadString() tìm thấy file
-    - assets/tessdata_config.json
-    - assets/tessdata/tessdata_config.json
-    - assets/tessdata/vie.traineddata
-    - assets/tessdata/eng.traineddata
+    # Thư mục PaddleOCR models (ONNX cho Desktop, NCNN cho Android)
+    - assets/paddle_models/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
