@@ -120,11 +120,35 @@ jobs:
           Invoke-WebRequest -Uri "https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-windows.exe" -OutFile "$env:TEMP\opencv.exe"
           Write-Host "Extracting OpenCV..."
           Start-Process -FilePath "$env:TEMP\opencv.exe" -ArgumentList "-o$env:RUNNER_TEMP -y" -Wait
-          echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build" >> $env:GITHUB_ENV
+
+          # Locate the actual OpenCVConfig.cmake inside the extraction (vc16)
+          $cvConfig = Get-ChildItem -Path "$env:RUNNER_TEMP\opencv" -Filter "OpenCVConfig.cmake" -Recurse | Where-Object { $_.FullName -like "*vc16\lib*" } | Select-Object -First 1
+          if ($cvConfig) {
+            $cvDir = $cvConfig.DirectoryName
+            Write-Host "Found inner OpenCVConfig.cmake in: $cvDir"
+            # Overwrite root OpenCVConfig.cmake so that root dispatcher doesn't block on newer MSVC versions
+            Copy-Item -Path $cvConfig.FullName -Destination "$env:RUNNER_TEMP\opencv\build\OpenCVConfig.cmake" -Force
+            echo "OpenCV_DIR=$cvDir" >> $env:GITHUB_ENV
+          } else {
+            echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build\x64\vc16\lib" >> $env:GITHUB_ENV
+          }
+
           echo "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin" >> $env:GITHUB_PATH
 
       - name: Install Dependencies
         run: flutter pub get
+
+      - name: Inject OpenCV into pp_ocr plugin
+        shell: pwsh
+        run: |
+          $ppOcrPlugin = Get-ChildItem -Path "$env:LOCALAPPDATA\Pub\Cache\hosted\pub.dev" -Filter "pp_ocr-*" -Directory | Select-Object -First 1
+          if ($ppOcrPlugin) {
+            $pluginThirdParty = "$($ppOcrPlugin.FullName)\windows\third_party\opencv\lib"
+            New-Item -ItemType Directory -Path $pluginThirdParty -Force | Out-Null
+            Copy-Item "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin\opencv_world490.dll" -Destination "$pluginThirdParty\" -Force -ErrorAction SilentlyContinue
+            Copy-Item "$env:RUNNER_TEMP\opencv\build\x64\vc16\lib\opencv_world490.lib" -Destination "$pluginThirdParty\" -Force -ErrorAction SilentlyContinue
+            Write-Host "Injected OpenCV into $($pluginThirdParty)"
+          }
 
       - name: Build Windows Release
         run: flutter build windows --release
