@@ -1,0 +1,169 @@
+name: Build Multi-Platform Artifacts (Android, Linux, Windows)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # 1. Android Build
+  # ============================================================================
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Verify Code Quality & Tests
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build Release APK
+        run: flutter build apk --release --verbose
+
+      - name: Upload Android Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: calories-calculator-android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  # ============================================================================
+  # 2. Linux Desktop Build
+  # ============================================================================
+  build-linux:
+    name: Build Linux Desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libopencv-dev libdeflate-dev libimath-dev
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Setup Linux ONNX Runtime for pp_ocr
+        run: |
+          cd $(find ~/.pub-cache/hosted/pub.dev/pp_ocr-* -maxdepth 0)
+          bash tool/setup_linux_deps.sh || true
+
+      - name: Build Linux Release
+        run: flutter build linux --release
+
+      - name: Package Linux Bundle
+        run: |
+          cd build/linux/x64/release
+          tar -czf calories-calculator-linux-x64.tar.gz bundle
+
+      - name: Upload Linux Release Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: calories-calculator-linux-x64
+          path: build/linux/x64/release/calories-calculator-linux-x64.tar.gz
+
+  # ============================================================================
+  # 3. Windows Desktop Build
+  # ============================================================================
+  build-windows:
+    name: Build Windows Desktop
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Windows Release
+        run: flutter build windows --release
+
+      - name: Package Windows Release (ZIP)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath build\calories-calculator-windows-x64.zip
+
+      - name: Upload Windows Release Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: calories-calculator-windows-x64
+          path: build\calories-calculator-windows-x64.zip
+
+  # ============================================================================
+  # 4. GitHub Release (Runs on Tag Push)
+  # ============================================================================
+  release:
+    name: Create GitHub Release
+    needs: [build-android, build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: calories-calculator-android-apk
+          path: release-artifacts/android
+
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: calories-calculator-linux-x64
+          path: release-artifacts/linux
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: calories-calculator-windows-x64
+          path: release-artifacts/windows
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/android/app-release.apk
+            release-artifacts/linux/calories-calculator-linux-x64.tar.gz
+            release-artifacts/windows/calories-calculator-windows-x64.zip
+          generate_release_notes: true
