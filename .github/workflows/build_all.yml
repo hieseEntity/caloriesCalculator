@@ -121,15 +121,19 @@ jobs:
           Write-Host "Extracting OpenCV..."
           Start-Process -FilePath "$env:TEMP\opencv.exe" -ArgumentList "-o$env:RUNNER_TEMP -y" -Wait
 
-          # Patch OpenCVConfig.cmake so newer MSVC (19.4x / VS 2022 17.10+) correctly uses the vc16 runtime binaries
-          $cfg = "$env:RUNNER_TEMP\opencv\build\OpenCVConfig.cmake"
-          if (Test-Path $cfg) {
-            $content = Get-Content $cfg -Raw
-            $overrides = "set(OpenCV_RUNTIME ""vc16"" CACHE STRING ""Forced vc16 runtime"")`nset(OpenCV_ARCH ""x64"" CACHE STRING ""Forced x64"")`n"
-            $content = $overrides + ($content -replace 'MSVC_VERSION MATCHES "\^193\[0-9\]\$"', 'MSVC_VERSION MATCHES "^19[3-9][0-9]$"')
-            Set-Content -Path $cfg -Value $content -Encoding UTF8
-            Write-Host "Patched OpenCVConfig.cmake with MSVC runtime overrides"
-          }
+          # Generate a clean, bulletproof OpenCVConfig.cmake that defines exact include dirs & libs
+          # This completely avoids MSVC version check mismatches in official OpenCV pack
+          $cvBuildDir = "$env:RUNNER_TEMP\opencv\build".Replace('\', '/')
+          $cmakeContent = @"
+          set(OpenCV_FOUND TRUE)
+          set(OpenCV_INCLUDE_DIRS "${cvBuildDir}/include")
+          set(OpenCV_LIBS "${cvBuildDir}/x64/vc16/lib/opencv_world490.lib")
+          set(OpenCV_VERSION "4.9.0")
+          message(STATUS "[OpenCVConfig] Injected OpenCV: include=${cvBuildDir}/include, lib=${cvBuildDir}/x64/vc16/lib/opencv_world490.lib")
+          "@
+
+          Set-Content -Path "$env:RUNNER_TEMP\opencv\build\OpenCVConfig.cmake" -Value $cmakeContent -Encoding UTF8
+          Write-Host "Generated clean OpenCVConfig.cmake in $env:RUNNER_TEMP\opencv\build"
 
           echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build" >> $env:GITHUB_ENV
           echo "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin" >> $env:GITHUB_PATH
