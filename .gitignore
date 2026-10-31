@@ -56,3 +56,7 @@ app.*.map.json
 # Allow PaddleOCR model binaries (< 15MB each, well within GitHub limit)
 !assets/paddle_models/*.bin
 !assets/paddle_models/*.onnx
+
+# App packages
+*.apk
+*.aab

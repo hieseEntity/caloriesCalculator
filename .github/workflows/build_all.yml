@@ -121,18 +121,17 @@ jobs:
           Write-Host "Extracting OpenCV..."
           Start-Process -FilePath "$env:TEMP\opencv.exe" -ArgumentList "-o$env:RUNNER_TEMP -y" -Wait
 
-          # Locate the actual OpenCVConfig.cmake inside the extraction (vc16)
-          $cvConfig = Get-ChildItem -Path "$env:RUNNER_TEMP\opencv" -Filter "OpenCVConfig.cmake" -Recurse | Where-Object { $_.FullName -like "*vc16\lib*" } | Select-Object -First 1
-          if ($cvConfig) {
-            $cvDir = $cvConfig.DirectoryName
-            Write-Host "Found inner OpenCVConfig.cmake in: $cvDir"
-            # Overwrite root OpenCVConfig.cmake so that root dispatcher doesn't block on newer MSVC versions
-            Copy-Item -Path $cvConfig.FullName -Destination "$env:RUNNER_TEMP\opencv\build\OpenCVConfig.cmake" -Force
-            echo "OpenCV_DIR=$cvDir" >> $env:GITHUB_ENV
-          } else {
-            echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build\x64\vc16\lib" >> $env:GITHUB_ENV
+          # Patch OpenCVConfig.cmake so newer MSVC (19.4x / VS 2022 17.10+) correctly uses the vc16 runtime binaries
+          $cfg = "$env:RUNNER_TEMP\opencv\build\OpenCVConfig.cmake"
+          if (Test-Path $cfg) {
+            $content = Get-Content $cfg -Raw
+            $overrides = "set(OpenCV_RUNTIME ""vc16"" CACHE STRING ""Forced vc16 runtime"")`nset(OpenCV_ARCH ""x64"" CACHE STRING ""Forced x64"")`n"
+            $content = $overrides + ($content -replace 'MSVC_VERSION MATCHES "\^193\[0-9\]\$"', 'MSVC_VERSION MATCHES "^19[3-9][0-9]$"')
+            Set-Content -Path $cfg -Value $content -Encoding UTF8
+            Write-Host "Patched OpenCVConfig.cmake with MSVC runtime overrides"
           }
 
+          echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build" >> $env:GITHUB_ENV
           echo "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin" >> $env:GITHUB_PATH
 
       - name: Install Dependencies
@@ -151,7 +150,7 @@ jobs:
           }
 
       - name: Build Windows Release
-        run: flutter build windows --release
+        run: flutter build windows --release --verbose
 
       - name: Package Windows Release (ZIP)
         shell: pwsh
