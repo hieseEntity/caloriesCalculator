@@ -113,6 +113,16 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Setup OpenCV 4.9.0 for Windows
+        shell: pwsh
+        run: |
+          Write-Host "Downloading OpenCV 4.9.0 Windows release..."
+          Invoke-WebRequest -Uri "https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-windows.exe" -OutFile "$env:TEMP\opencv.exe"
+          Write-Host "Extracting OpenCV..."
+          Start-Process -FilePath "$env:TEMP\opencv.exe" -ArgumentList "-o$env:RUNNER_TEMP -y" -Wait
+          echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build" >> $env:GITHUB_ENV
+          echo "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin" >> $env:GITHUB_PATH
+
       - name: Install Dependencies
         run: flutter pub get
 
@@ -122,6 +132,7 @@ jobs:
       - name: Package Windows Release (ZIP)
         shell: pwsh
         run: |
+          Copy-Item "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin\opencv_world490.dll" -Destination "build\windows\x64\runner\Release\" -Force
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath build\calories-calculator-windows-x64.zip
 
       - name: Upload Windows Release Bundle
